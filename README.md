@@ -26,12 +26,11 @@
    ```bash
    git clone [https://github.com/ziz6956/MOVIJA-Project-RW.git](https://github.com/ziz6956/MOVIJA-Project-RW.git)
    cd MOVIJA-Project-RW
+
 Выдайте права скрипту и запустите установку от имени root:
-
-Bash
-
-chmod +x setup.sh
-sudo bash setup.sh
+   ```bash
+   chmod +x setup.sh
+   sudo bash setup.sh
 Следуйте интерактивным подсказкам (потребуется ввести домены и название проекта).
 
 ⚠️ ВАЖНО: В конце скрипт выведет таблицу со всеми сгенерированными портами, именами пользователей и паролями. Обязательно сохраните их! Стандартный доступ по порту 22 и root-паролю будет навсегда закрыт.
@@ -63,3 +62,4 @@ sudo docker compose up -d
 Перезапустить все сервисы: docker compose restart
 
 Полностью остановить кластер: docker compose down
+
