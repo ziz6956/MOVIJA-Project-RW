@@ -1,0 +1,12 @@
+# Игнорируем конфигурационные файлы и шаблоны в статистике языков
+configs/** linguist-generated=true
+docker-compose.yml linguist-generated=true
+.env.example linguist-generated=true
+
+# Указываем, что модули - это shell скрипты
+modules/*.sh linguist-language=Shell
+setup.sh linguist-language=Shell
+
+# Нормализация окончаний строк (защита от \r\n при работе из Windows)
+* text=auto
+*.sh text eol=lf

@@ -1,0 +1,7 @@
+{$FRONT_END_DOMAIN}:{$PANEL_PORT} {
+    reverse_proxy remnawave:3000
+}
+
+{$SUB_PUBLIC_DOMAIN} {
+    reverse_proxy remnawave-subscription-page:3010
+}
