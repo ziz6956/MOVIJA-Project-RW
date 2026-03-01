@@ -55,9 +55,11 @@
    ```
 
 ## 🛠 Управление кластером
+
 Выполняйте команды из директории проекта:
-Посмотреть логи бэкенда панели: docker logs remnawave
-Посмотреть логи страницы подписок: docker logs remnawave-subscription-page
-Перезапустить все сервисы: docker compose restart
-Полностью остановить кластер: docker compose down
+* Посмотреть логи бэкенда панели: docker logs remnawave
+* Посмотреть логи страницы подписок: docker logs remnawave-subscription-page
+* Перезапустить все сервисы: docker compose restart
+* Полностью остановить кластер: docker compose down
+
 
