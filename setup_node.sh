@@ -36,12 +36,6 @@ run_node_preflight() {
         exit 1
     fi
 
-    log_info "Маскировка системного имени (Hostname)..."
-    hostnamectl set-hostname cpe-nyc-01
-    if ! grep -q "127.0.0.1 cpe-nyc-01" /etc/hosts; then
-        echo "127.0.0.1 cpe-nyc-01" >> /etc/hosts
-    fi
-
     log_info "Обновление системы и установка зависимостей..."
     apt-get update -qq && apt-get install -y -qq curl wget git nano ufw fail2ban iptables logrotate > /dev/null
     log_success "Подготовка завершена."
@@ -51,7 +45,11 @@ run_node_input() {
     log_section "2. СБОР ДАННЫХ ДЛЯ НОДЫ"
     
     local RANDOM_SSH=$(shuf -i 10000-60000 -n 1)
+    
+    read -p "Укажите имя домена ноды для маскировки [по умолчанию vpn-node]: " INPUT_HOSTNAME
+    export NODE_HOSTNAME=${INPUT_HOSTNAME:-vpn-node}
 
+    # Исправлено: оставили только один запрос порта
     read -p "Укажите новый SSH порт [по умолчанию $RANDOM_SSH]: " INPUT_SSH_PORT
     export SSH_PORT=${INPUT_SSH_PORT:-$RANDOM_SSH}
 
@@ -61,13 +59,14 @@ run_node_input() {
     read -p "Секретный ключ для Xray Node (SECRET_KEY): " NODE_SECRET
     export NODE_SECRET
 
-    read -p "URL основной панели [напр. https://panel.khadidjavpn.ru]: " PANEL_URL
+    # Исправлено: убрали твой личный домен из примеров
+    read -p "URL основной панели [напр. https://panel.example.com]: " PANEL_URL
     export PANEL_URL
 
-    read -p "Домен страницы подписок [напр. sub.khadidjavpn.ru]: " SUB_DOMAIN
+    read -p "Домен страницы подписок [напр. sub.example.com]: " SUB_DOMAIN
     export SUB_DOMAIN
 
-    read -p "Домен веб-кабинета [напр. lk.khadidjavpn.ru]: " CABINET_DOMAIN
+    read -p "Домен веб-кабинета [напр. lk.example.com]: " CABINET_DOMAIN
     export CABINET_DOMAIN
 
     read -p "URL API вашего бота [напр. http://127.0.0.1:8080]: " INPUT_BOT
@@ -76,6 +75,12 @@ run_node_input() {
 
 run_node_security() {
     log_section "3. НАСТРОЙКА БЕЗОПАСНОСТИ"
+
+    log_info "Маскировка системного имени (Hostname)..."
+    hostnamectl set-hostname "$NODE_HOSTNAME"
+    if ! grep -q "127.0.0.1 $NODE_HOSTNAME" /etc/hosts; then
+        echo "127.0.0.1 $NODE_HOSTNAME" >> /etc/hosts
+    fi
     
     log_info "Перенос SSH на порт $SSH_PORT..."
     if systemctl is-active --quiet ssh.socket 2>/dev/null; then
