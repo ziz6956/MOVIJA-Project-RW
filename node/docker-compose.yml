@@ -1,0 +1,43 @@
+services:
+  remnanode:
+    container_name: remnanode
+    hostname: remnanode
+    image: remnawave/node:latest
+    restart: always
+    network_mode: host
+    environment:
+      - NODE_PORT=2222
+      - SECRET_KEY=${NODE_SECRET_KEY}
+    volumes:
+      - '/var/log/remnanode:/var/log/remnanode'
+
+  subscription-page:
+    image: remnawave/subscription-page:latest
+    container_name: remnawave-subscription-page
+    hostname: remnawave-subscription-page
+    restart: always
+    environment:
+      - APP_PORT=3010
+      - REMNAWAVE_PANEL_URL=${PANEL_URL}
+    ports:
+      - '127.0.0.1:3010:3010'
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: remnawave-caddy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    env_file:
+      - .env
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+      - ./cabinet:/var/www/cabinet:ro
+
+volumes:
+  caddy_data:
+  caddy_config:

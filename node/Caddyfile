@@ -1,0 +1,23 @@
+{$SUB_DOMAIN} {
+    reverse_proxy 127.0.0.1:3010
+}
+
+{$CABINET_DOMAIN} {
+    root * /var/www/cabinet
+    encode gzip zstd
+
+    try_files {path} /index.html
+    file_server
+
+    @api {
+        path /miniapp/* /api/* /app-config.json
+    }
+    handle @api {
+        reverse_proxy {$BOT_API_URL} {
+            header_up Host {upstream_hostport}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+}
