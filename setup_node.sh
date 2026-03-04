@@ -49,7 +49,6 @@ run_node_input() {
     read -p "Укажите имя домена ноды для маскировки [по умолчанию vpn-node]: " INPUT_HOSTNAME
     export NODE_HOSTNAME=${INPUT_HOSTNAME:-vpn-node}
 
-    # Исправлено: оставили только один запрос порта
     read -p "Укажите новый SSH порт [по умолчанию $RANDOM_SSH]: " INPUT_SSH_PORT
     export SSH_PORT=${INPUT_SSH_PORT:-$RANDOM_SSH}
 
@@ -59,9 +58,11 @@ run_node_input() {
     read -p "Секретный ключ для Xray Node (SECRET_KEY): " NODE_SECRET
     export NODE_SECRET
 
-    # Исправлено: убрали твой личный домен из примеров
     read -p "URL основной панели [напр. https://panel.example.com]: " PANEL_URL
     export PANEL_URL
+
+    read -p "API-токен от основной панели (из Settings -> API Tokens): " INPUT_API_TOKEN
+    export REMNAWAVE_API_TOKEN=${INPUT_API_TOKEN}
 
     read -p "Домен страницы подписок [напр. sub.example.com]: " SUB_DOMAIN
     export SUB_DOMAIN
@@ -141,6 +142,7 @@ run_node_deploy() {
     cat <<EOF > "$PROJECT_DIR/.env"
 NODE_SECRET_KEY=$NODE_SECRET
 PANEL_URL=$PANEL_URL
+REMNAWAVE_API_TOKEN=$REMNAWAVE_API_TOKEN
 SUB_DOMAIN=$SUB_DOMAIN
 CABINET_DOMAIN=$CABINET_DOMAIN
 BOT_API_URL=$BOT_API_URL
