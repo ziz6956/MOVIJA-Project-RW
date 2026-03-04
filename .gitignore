@@ -1,0 +1,6 @@
+.env
+*.log
+caddy-ssl-data/
+caddy_data/
+caddy_config/
+.DS_Store

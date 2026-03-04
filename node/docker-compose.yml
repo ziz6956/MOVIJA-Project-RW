@@ -1,44 +1,50 @@
 services:
   remnanode:
     container_name: remnanode
-    hostname: remnanode
     image: remnawave/node:latest
     restart: always
-    network_mode: host
     environment:
       - NODE_PORT=2222
       - SECRET_KEY=${NODE_SECRET_KEY}
-    volumes:
-      - '/var/log/remnanode:/var/log/remnanode'
+    ports:
+      - "2222:2222"
+    networks:
+      - remnawave-network
 
-  subscription-page:
+  remnawave-subscription-page:
     image: remnawave/subscription-page:latest
     container_name: remnawave-subscription-page
-    hostname: remnawave-subscription-page
     restart: always
     environment:
       - APP_PORT=3010
+      - APP_HOST=0.0.0.0
       - REMNAWAVE_PANEL_URL=${PANEL_URL}
       - REMNAWAVE_API_TOKEN=${REMNAWAVE_API_TOKEN}
-    ports:
-      - '127.0.0.1:3010:3010'
+      - NODE_ENV=development
+      - TRUST_PROXY=true
+    networks:
+      - remnawave-network
 
   caddy:
-    image: caddy:2-alpine
-    container_name: remnawave-caddy
+    image: caddy:2.9
+    container_name: caddy
     restart: always
     ports:
       - "80:80"
       - "443:443"
-      - "443:443/udp"
-    env_file:
-      - .env
+    environment:
+      - SUB_DOMAIN=${SUB_DOMAIN}      # Динамический домен подписок
+      - CABINET_DOMAIN=${CABINET_DOMAIN} # Динамический домен кабинета
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-      - ./cabinet:/var/www/cabinet:ro
+      - caddy-ssl-data:/data
+    networks:
+      - remnawave-network
+
+networks:
+  remnawave-network:
+    name: remnawave-network
+    driver: bridge
 
 volumes:
-  caddy_data:
-  caddy_config:
+  caddy-ssl-data:
