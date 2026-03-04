@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==========================================
-# MOVIJA-Project-RW: Node Orchestrator (Stable NYC Edition)
+# MOVIJA-Project-RW: Node Orchestrator
 # ==========================================
 
 set -euo pipefail
@@ -18,13 +18,10 @@ else
     exit 1
 fi
 
-# 2. Подключение установки Docker
-if [ -f "$MODULES_DIR/05_docker_install.sh" ]; then
-    source "$MODULES_DIR/05_docker_install.sh"
-else
-    log_error "Модуль установки Docker не найден!"
-    exit 1
-fi
+# 2. Подключение универсальных модулей
+if [ -f "$MODULES_DIR/02_user_management.sh" ]; then source "$MODULES_DIR/02_user_management.sh"; else log_error "02_user_management.sh не найден!"; exit 1; fi
+if [ -f "$MODULES_DIR/03_security_setup.sh" ]; then source "$MODULES_DIR/03_security_setup.sh"; else log_error "03_security_setup.sh не найден!"; exit 1; fi
+if [ -f "$MODULES_DIR/05_docker_install.sh" ]; then source "$MODULES_DIR/05_docker_install.sh"; else log_error "05_docker_install.sh не найден!"; exit 1; fi
 
 run_node_preflight() {
     log_section "1. БАЗОВЫЕ ПРОВЕРКИ И НАСТРОЙКИ"
@@ -73,24 +70,18 @@ run_node_security() {
     log_info "Маскировка Hostname..."
     hostnamectl set-hostname "$NODE_HOSTNAME"
     
-    log_info "Перенос SSH на порт $SSH_PORT..."
-    sed -i "s/^#\?Port .*/Port $SSH_PORT/" /etc/ssh/sshd_config
-    systemctl restart ssh
+    # ВЫЗОВ УНИВЕРСАЛЬНЫХ МОДУЛЕЙ
+    run_user_management
+    run_security_setup
 
-    log_info "Настройка Firewall (UFW)..."
-    ufw --force reset > /dev/null
-    ufw default deny incoming
-    ufw default allow outgoing
-    ufw allow "$SSH_PORT"/tcp comment 'Custom SSH'
-    ufw allow 80/tcp comment 'Caddy HTTP'
-    ufw allow 443/tcp comment 'Caddy HTTPS'
+    log_info "Дополнительная настройка UFW для узла..."
     ufw allow 443/udp comment 'Caddy HTTP3'
     
     if [ -n "${PANEL_IP:-}" ]; then
         ufw allow from "$PANEL_IP" to any port 2222 proto tcp comment 'Panel Access'
     fi
-    ufw --force enable > /dev/null
-    log_success "Безопасность и Firewall настроены."
+    ufw reload > /dev/null
+    log_success "Специфичные правила Firewall для ноды применены."
 }
 
 run_node_deploy() {
@@ -100,11 +91,9 @@ run_node_deploy() {
     mkdir -p "$PROJECT_DIR"
     
     log_info "Копирование конфигураций..."
-    # Убедись, что эти файлы лежат в твоей папке node/ внутри репозитория
     cp "$NODE_TEMPLATE_DIR/docker-compose.yml" "$PROJECT_DIR/"
     cp "$NODE_TEMPLATE_DIR/Caddyfile" "$PROJECT_DIR/"
     
-    # Если папка cabinet существует, копируем её
     if [ -d "$NODE_TEMPLATE_DIR/cabinet" ]; then
         cp -r "$NODE_TEMPLATE_DIR/cabinet" "$PROJECT_DIR/"
     fi
@@ -131,11 +120,12 @@ run_node_security
 run_docker_install
 run_node_deploy
 
-PUBLIC_IP=$(curl -s ifconfig.me)
 log_section "ИТОГОВЫЕ ДАННЫЕ УЗЛА"
 echo -e "🔗 Страница подписок: https://$SUB_DOMAIN"
 echo -e "🔗 Личный кабинет:   https://$CABINET_DOMAIN"
 echo -e "----------------------------------------------------"
 echo -e "🔑 SSH порт:         $SSH_PORT"
+echo -e "👤 Пользователь:     $NEW_USER"
+echo -e "🔑 Пароль:           $USER_PASS"
 echo -e "🏠 Директория:       $PROJECT_DIR"
 echo -e "----------------------------------------------------"
