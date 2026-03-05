@@ -1,5 +1,9 @@
 # Страница подписок
 {$SUB_DOMAIN} {
+    @root path /
+    header @root Content-Type "text/html; charset=utf-8"
+    respond @root `<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><title>Узел подписок</title><style>body{background:#121212;color:#e0e0e0;font-family:system-ui,-apple-system,sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;text-align:center;}.box{padding:30px;background:#1e1e1e;border-radius:12px;border:1px solid #333;box-shadow:0 8px 24px rgba(0,0,0,0.5);}h2{margin-top:0;color:#fff;}p{color:#aaa;line-height:1.5;margin-bottom:0;}.hlt{color:#4facfe;}</style></head><body><div class="box"><h2>🔒 Служба подписок</h2><p>Для загрузки конфигураций используйте <span class="hlt">полную ссылку</span>,<br>полученную в Личном кабинете или боте.</p></div></body></html>` 200
+
     reverse_proxy remnawave-subscription-page:3010 {
         header_up X-Forwarded-For {remote_host}
         header_up X-Forwarded-Proto https

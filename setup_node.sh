@@ -7,6 +7,7 @@ set -euo pipefail
 
 export WORK_DIR=$(pwd)
 export MODULES_DIR="$WORK_DIR/modules"
+export CONFIGS_DIR="$WORK_DIR/configs"
 export NODE_TEMPLATE_DIR="$WORK_DIR/node"
 export PROJECT_DIR="/opt/remnanode"
 
@@ -48,7 +49,8 @@ run_node_input() {
     read -p "🔹 IP основной ПАНЕЛИ (для доступа к API 2222): " PANEL_IP
     export PANEL_IP
 
-    read -p "🔹 Секретный ключ ноды (NODE_SECRET_KEY): " NODE_SECRET
+    echo -e "\n\033[0;33m[ВНИМАНИЕ]\033[0m Нода должна быть предварительно создана в вашей веб-панели!"
+    read -p "🔹 Секретный ключ ноды (Панель -> Ноды -> Управление -> Редактировать ноду -> SECRET_KEY): " NODE_SECRET
     export NODE_SECRET
 
     read -p "🔹 URL основной панели (напр. https://panel.site.ru): " PANEL_URL
