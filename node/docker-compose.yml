@@ -38,6 +38,7 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-ssl-data:/data
+      - ./cabinet:/var/www/cabinet:ro
     networks:
       - remnawave-network
 
