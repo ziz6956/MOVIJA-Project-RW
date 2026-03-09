@@ -37,7 +37,7 @@ services:
       - CABINET_DOMAIN=${CABINET_DOMAIN} # Динамический домен кабинета
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy-ssl-data:/data
+      - caddy-data:/data
       - ./cabinet:/var/www/cabinet:ro
     networks:
       - remnawave-network
@@ -48,4 +48,5 @@ networks:
     driver: bridge
 
 volumes:
-  caddy-ssl-data:
+  caddy-data:
+    name: caddy-data

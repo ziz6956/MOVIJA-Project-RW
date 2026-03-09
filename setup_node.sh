@@ -5,129 +5,94 @@
 
 set -euo pipefail
 
+export INSTALL_TYPE="node"
 export WORK_DIR=$(pwd)
 export MODULES_DIR="$WORK_DIR/modules"
 export CONFIGS_DIR="$WORK_DIR/configs"
 export NODE_TEMPLATE_DIR="$WORK_DIR/node"
 export PROJECT_DIR="/opt/remnanode"
+export ENV_PATH="$PROJECT_DIR/.env"
+export COMPOSE_DIR="$PROJECT_DIR"
 
-# 1. Подключение логгера
-if [ -f "$MODULES_DIR/00_logger.sh" ]; then
-    source "$MODULES_DIR/00_logger.sh"
-else
+if [ ! -d "$MODULES_DIR" ] || [ ! -f "$MODULES_DIR/00_logger.sh" ]; then
     echo -e "\033[0;31m[ERROR]\033[0m Файл логгера не найден в $MODULES_DIR!"
     exit 1
 fi
 
-# 2. Подключение универсальных модулей
-if [ -f "$MODULES_DIR/02_user_management.sh" ]; then source "$MODULES_DIR/02_user_management.sh"; else log_error "02_user_management.sh не найден!"; exit 1; fi
-if [ -f "$MODULES_DIR/03_security_setup.sh" ]; then source "$MODULES_DIR/03_security_setup.sh"; else log_error "03_security_setup.sh не найден!"; exit 1; fi
-if [ -f "$MODULES_DIR/05_docker_install.sh" ]; then source "$MODULES_DIR/05_docker_install.sh"; else log_error "05_docker_install.sh не найден!"; exit 1; fi
+source "$MODULES_DIR/00_logger.sh"
 
-run_node_preflight() {
-    log_section "1. БАЗОВЫЕ ПРОВЕРКИ И НАСТРОЙКИ"
-    if [ "$EUID" -ne 0 ]; then
-        log_error "Запустите скрипт от имени root (sudo)."
-        exit 1
-    fi
-    log_info "Обновление системы и установка зависимостей..."
-    apt-get update -qq && apt-get install -y -qq curl wget git nano ufw fail2ban iptables logrotate > /dev/null
-    log_success "Подготовка завершена."
+check_dependencies() {
+    log_info "Проверка системных зависимостей..."
+    local deps=("sha256sum" "tar" "docker" "curl")
+    for dep in "${deps[@]}"; do
+        if ! command -v "$dep" &> /dev/null; then
+            if [ "$dep" == "docker" ]; then
+                log_warn "Docker не установлен. Режим полного развертывания сам установит его."
+            else
+                log_error "Утилита $dep не найдена."
+                exit 1
+            fi
+        fi
+    done
 }
 
-run_node_input() {
-    log_section "2. СБОР ДАННЫХ ДЛЯ НОДЫ"
-    
-    local RANDOM_SSH=$(shuf -i 10000-60000 -n 1)
-    
-    read -p "🔹 Имя хоста ноды [по умолчанию vpn-node]: " INPUT_HOSTNAME
-    export NODE_HOSTNAME=${INPUT_HOSTNAME:-vpn-node}
+show_node_menu() {
+    log_section "ГЛАВНОЕ МЕНЮ (УЗЕЛ / НОДА)"
+    echo "1) Полная установка узла (на чистую Ubuntu)"
+    echo "2) Только бэкап сертификатов (создать архив с хешем)"
+    echo "3) Только восстановление сертификатов (из архива)"
+    echo "4) Выход"
+    echo -e "------------------------------------------"
+    read -p "Выберите действие [1-4]: " main_choice
 
-    read -p "🔹 Новый SSH порт [по умолчанию $RANDOM_SSH]: " INPUT_SSH_PORT
-    export SSH_PORT=${INPUT_SSH_PORT:-$RANDOM_SSH}
-
-    read -p "🔹 IP основной ПАНЕЛИ (для доступа к API 2222): " PANEL_IP
-    export PANEL_IP
-
-    echo -e "\n\033[0;33m[ВНИМАНИЕ]\033[0m Нода должна быть предварительно создана в вашей веб-панели!"
-    read -p "🔹 Секретный ключ ноды (Панель -> Ноды -> Управление -> Редактировать ноду -> SECRET_KEY): " NODE_SECRET
-    export NODE_SECRET
-
-    read -p "🔹 URL основной панели (напр. https://panel.site.ru): " PANEL_URL
-    export PANEL_URL
-
-    read -p "🔹 API-токен панели (Settings -> API Tokens): " INPUT_API_TOKEN
-    export REMNAWAVE_API_TOKEN=${INPUT_API_TOKEN}
-
-    read -p "🔹 Домен подписок (напр. sub.site.ru): " SUB_DOMAIN
-    export SUB_DOMAIN
-
-    read -p "🔹 Домен кабинета (напр. cabinet.site.ru): " CABINET_DOMAIN
-    export CABINET_DOMAIN
+    case $main_choice in
+        1) run_full_node_install ;;
+        2) source "$MODULES_DIR/08_backup_manager.sh"; create_certificates_backup ;;
+        3) source "$MODULES_DIR/08_backup_manager.sh"; restore_certificates ;;
+        4) exit 0 ;;
+        *) show_node_menu ;;
+    esac
 }
 
-run_node_security() {
-    log_section "3. НАСТРОЙКА БЕЗОПАСНОСТИ"
-
-    log_info "Маскировка Hostname..."
-    hostnamectl set-hostname "$NODE_HOSTNAME"
-    
-    # ВЫЗОВ УНИВЕРСАЛЬНЫХ МОДУЛЕЙ
-    run_user_management
-    run_security_setup
-
-    log_info "Дополнительная настройка UFW для узла..."
-    ufw allow 443/udp comment 'Caddy HTTP3'
-    
-    if [ -n "${PANEL_IP:-}" ]; then
-        ufw allow from "$PANEL_IP" to any port 2222 proto tcp comment 'Panel Access'
-    fi
-    ufw reload > /dev/null
-    log_success "Специфичные правила Firewall для ноды применены."
-}
-
-run_node_deploy() {
-    log_section "4. РАЗВЕРТЫВАНИЕ ПРОЕКТА"
-    
-    log_info "Создание директории $PROJECT_DIR..."
+run_node_prepare() {
+    log_section "ПОДГОТОВКА ФАЙЛОВ НОДЫ"
     mkdir -p "$PROJECT_DIR"
-    
-    log_info "Копирование конфигураций..."
     cp "$NODE_TEMPLATE_DIR/docker-compose.yml" "$PROJECT_DIR/"
     cp "$NODE_TEMPLATE_DIR/Caddyfile" "$PROJECT_DIR/"
-    
     if [ -d "$NODE_TEMPLATE_DIR/cabinet" ]; then
         cp -r "$NODE_TEMPLATE_DIR/cabinet" "$PROJECT_DIR/"
     fi
-
+    
     log_info "Генерация финального .env..."
-    cat <<EOF > "$PROJECT_DIR/.env"
+    cat <<EOF > "$ENV_PATH"
 SUB_DOMAIN=$SUB_DOMAIN
 CABINET_DOMAIN=$CABINET_DOMAIN
 PANEL_URL=$PANEL_URL
 REMNAWAVE_API_TOKEN=$REMNAWAVE_API_TOKEN
 NODE_SECRET_KEY=$NODE_SECRET
 EOF
-
-    log_info "Запуск Docker Compose..."
-    cd "$PROJECT_DIR"
-    docker compose up -d --remove-orphans
-    log_success "Узел успешно запущен!"
 }
 
-# --- ЗАПУСК ПАЙПЛАЙНА ---
-run_node_preflight
-run_node_input
-run_node_security
-run_docker_install
-run_node_deploy
+run_full_node_install() {
+    source "$MODULES_DIR/01_preflight_checks.sh"
+    source "$MODULES_DIR/02_user_management.sh"
+    source "$MODULES_DIR/03_security_setup.sh"
+    source "$MODULES_DIR/04_system_optimize.sh"
+    source "$MODULES_DIR/05_docker_install.sh"
+    source "$MODULES_DIR/06_env_generator.sh"
+    source "$MODULES_DIR/07_deploy_cluster.sh"
+    source "$MODULES_DIR/08_backup_manager.sh"
 
-log_section "ИТОГОВЫЕ ДАННЫЕ УЗЛА"
-echo -e "🔗 Страница подписок: https://$SUB_DOMAIN"
-echo -e "🔗 Личный кабинет:   https://$CABINET_DOMAIN"
-echo -e "----------------------------------------------------"
-echo -e "🔑 SSH порт:         $SSH_PORT"
-echo -e "👤 Пользователь:     $NEW_USER"
-echo -e "🔑 Пароль:           $USER_PASS"
-echo -e "🏠 Директория:       $PROJECT_DIR"
-echo -e "----------------------------------------------------"
+    run_preflight_checks
+    run_env_generator
+    run_user_management
+    run_security_setup
+    run_system_optimize
+    run_docker_install
+    run_node_prepare
+    run_backup_logic
+    run_deploy_cluster
+}
+
+check_dependencies
+show_node_menu

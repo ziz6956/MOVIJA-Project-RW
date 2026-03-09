@@ -38,19 +38,6 @@ services:
     expose:
       - "3000"
 
-  remnawave-subscription-page:
-    image: remnawave/subscription-page:7.1.7
-    container_name: remnawave-subscription-page
-    restart: always
-    environment:
-      - APP_PORT=3010
-      - REMNAWAVE_PANEL_URL=http://remnawave:3000
-      - META_TITLE=${META_TITLE}
-    depends_on:
-      - remnawave
-    expose:
-      - "3010"
-
   caddy:
     image: caddy:2.11
     container_name: caddy
@@ -67,10 +54,11 @@ services:
       - caddy-config:/config
     depends_on:
       - remnawave
-      - remnawave-subscription-page
 
 volumes:
   postgres-data:
   redis-data:
   caddy-data:
+    name: caddy-data
   caddy-config:
+    name: caddy-config

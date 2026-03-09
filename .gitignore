@@ -4,3 +4,7 @@ caddy-ssl-data/
 caddy_data/
 caddy_config/
 .DS_Store
+# Резервные копии сертификатов и данных
+*.tar.gz
+*.zip
+backups/

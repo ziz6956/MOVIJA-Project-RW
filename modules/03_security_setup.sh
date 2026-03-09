@@ -11,7 +11,6 @@ run_security_setup() {
     sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
 
     mkdir -p /etc/systemd/system/ssh.socket.d
-    
     cp "$CONFIGS_DIR/security/ssh_listen.conf" /etc/systemd/system/ssh.socket.d/listen.conf
     sed -i "s/__SSH_PORT__/$SSH_PORT/g" /etc/systemd/system/ssh.socket.d/listen.conf
 
@@ -29,8 +28,17 @@ run_security_setup() {
     ufw allow "$SSH_PORT"/tcp comment 'Custom SSH'
     ufw allow 80/tcp comment 'HTTP'
     ufw allow 443/tcp comment 'HTTPS'
+
+    # --- СПЕЦИФИЧНЫЕ ПРАВИЛА ДЛЯ НОДЫ ---
+    if [ "$INSTALL_TYPE" == "node" ]; then
+        ufw allow 443/udp comment 'Caddy HTTP3'
+        if [ -n "${PANEL_IP:-}" ]; then
+            ufw allow from "$PANEL_IP" to any port 2222 proto tcp comment 'Panel Access'
+        fi
+    fi
+
     ufw --force enable > /dev/null
-    log_success "UFW активирован (базовые порты: $SSH_PORT, 80, 443)."
+    log_success "UFW активирован и настроен."
 
     cp "$CONFIGS_DIR/security/fail2ban.jail.local" /etc/fail2ban/jail.local
     sed -i "s/__SSH_PORT__/$SSH_PORT/g" /etc/fail2ban/jail.local
