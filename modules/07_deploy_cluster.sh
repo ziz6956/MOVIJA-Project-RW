@@ -76,8 +76,8 @@ run_deploy_cluster() {
         echo -e "ПАНЕЛЬ VPN:   https://$FRONT_DOMAIN:$PANEL_PORT"
         echo -e "ПОДПИСКИ:     https://$SUB_DOMAIN"
     else
-        echo -e "ПОДПИСКИ:     https://$SUB_DOMAIN"
-        echo -e "КАБИНЕТ:      https://$CABINET_DOMAIN"
+        echo -e "ПОДПИСКИ:     https://$SUB_DOMAIN:$SUB_PORT"
+        echo -e "КАБИНЕТ:      https://$CABINET_DOMAIN:$SUB_PORT"
         echo -e "ДИРЕКТОРИЯ:   $PROJECT_DIR"
     fi
     echo -e "------------------------------------------"

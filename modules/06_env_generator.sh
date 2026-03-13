@@ -71,5 +71,10 @@ run_env_generator() {
 
         read -p "🔹 Домен кабинета (напр. cabinet.site.ru): " CABINET_DOMAIN
         export CABINET_DOMAIN
+
+        # Генерация порта подписок из списка поддерживаемых Cloudflare HTTPS
+        local CF_PORTS=(2053 2083 2087 2096 8443)
+        export SUB_PORT=${CF_PORTS[$((RANDOM % ${#CF_PORTS[@]}))]}
+        log_info "Сгенерирован порт подписок и кабинета: $SUB_PORT"
     fi
 }

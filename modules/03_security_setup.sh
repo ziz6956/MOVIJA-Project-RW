@@ -32,6 +32,7 @@ run_security_setup() {
     # --- СПЕЦИФИЧНЫЕ ПРАВИЛА ДЛЯ НОДЫ ---
     if [ "$INSTALL_TYPE" == "node" ]; then
         ufw allow 443/udp comment 'Caddy HTTP3'
+        ufw allow "$SUB_PORT"/tcp comment 'Caddy Subscriptions'
         if [ -n "${PANEL_IP:-}" ]; then
             ufw allow from "$PANEL_IP" to any port 2222 proto tcp comment 'Panel Access'
         fi
