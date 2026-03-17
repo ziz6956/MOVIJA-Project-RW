@@ -42,16 +42,18 @@ show_node_menu() {
     echo "2) Только бэкап сертификатов (создать архив с хешем)"
     echo "3) Только восстановление сертификатов (из архива)"
     echo "4) Поиск лучшего SNI для Reality (Сканер)"
-    echo "5) Выход"
+    echo "5) Диагностика VPS (Fusion Monster / goecs)"
+    echo "6) Выход"
     echo -e "------------------------------------------"
-    read -p "Выберите действие [1-5]: " main_choice
+    read -p "Выберите действие [1-6]: " main_choice
 
     case $main_choice in
         1) run_full_node_install ;;
         2) source "$MODULES_DIR/08_backup_manager.sh"; create_certificates_backup ;;
         3) source "$MODULES_DIR/08_backup_manager.sh"; restore_certificates ;;
         4) source "$MODULES_DIR/09_reality_scanner.sh"; run_reality_scanner ;;
-        5) exit 0 ;;
+        5) source "$MODULES_DIR/10_vps_check.sh"; run_vps_check ;;
+        6) exit 0 ;;
         *) show_node_menu ;;
     esac
 }
