@@ -44,8 +44,9 @@ run_reality_scanner() {
         echo -e "\n\033[0;32mТоп рекомендуемых доменов (SNI) из вашей подсети:\033[0m"
         echo -e "IP Address \t\t SNI Domain"
         echo -e "--------------------------------------------------"
-        # Читаем результаты, убираем заголовок и мусорные домены
-        tail -n +2 scan_results.csv | awk -F, '{print $1 "\t" $5}' | grep -vE '\*\.|sni-.*fastly|vpngemini|toy2025|userapi|porridge|netlify' | head -n 10
+        
+        # Берем 1-ю (IP) и 3-ю (Домен) колонки. Фильтруем мусор.
+        tail -n +2 scan_results.csv | awk -F, '{printf "%-18s %s\n", $1, $3}' | grep -vE '\*\.|sni-.*fastly|vpngemini|toy2025|userapi|porridge|netlify' | head -n 10
         
         echo -e "\n\033[0;33m[СОВЕТ]\033[0m Выберите один из крупных доменов (например, Apple, Microsoft, Google)."
         echo -e "Укажите его в веб-панели Remnawave в полях 'Dest' (с портом :443) и 'Server Names'."
