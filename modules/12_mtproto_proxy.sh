@@ -12,21 +12,21 @@ show_mtproto_link() {
         return 1
     fi
 
-    # Используем более простой и надежный парсинг
+    # MTG v2 слушает на 3128. Вытаскиваем секрет и порт.
     local SECRET=$(docker inspect mtproto-proxy --format='{{range .Config.Env}}{{println .}}{{end}}' | grep '^MTG_SECRET=' | cut -d'=' -f2)
-    local PORT=$(docker inspect mtproto-proxy --format='{{(index (index .NetworkSettings.Ports "8080/tcp") 0).HostPort}}')
+    local PORT=$(docker inspect mtproto-proxy --format='{{(index (index .NetworkSettings.Ports "3128/tcp") 0).HostPort}}')
 
     if [ -z "$SECRET" ] || [ -z "$PORT" ]; then
-        log_error "Не удалось получить параметры из контейнера."
+        log_error "Не удалось получить параметры. Попробуйте переустановить прокси."
         return 1
     fi
 
+    # Формируем ссылку с префиксом dd для Fake-TLS
     local TG_LINK="https://t.me/proxy?server=${SERVER_IP}&port=${PORT}&secret=dd${SECRET}"
 
     log_section "ИНФОРМАЦИЯ О MTPROTO PROXY"
     echo -e "Статус: ${C_GREEN}Запущен и работает${C_NC}"
-    echo -e "Сервер: $SERVER_IP"
-    echo -e "Порт: $PORT"
+    echo -e "Порт на сервере: $PORT"
     echo -e "--------------------------------------------------------"
     echo -e "${C_GREEN}ВАША ССЫЛКА ДЛЯ ПОДКЛЮЧЕНИЯ:${C_NC}"
     echo -e "${C_CYAN}${TG_LINK}${C_NC}"
@@ -36,16 +36,16 @@ show_mtproto_link() {
 run_mtproto_install() {
     if [ "$(docker ps -aq -f name=mtproto-proxy)" ]; then
         log_section "УПРАВЛЕНИЕ MTPROTO"
-        echo "1) Показать ссылку для подключения"
+        echo "1) Показать ссылку"
         echo "2) Переустановить"
-        echo "3) Удалить прокси"
+        echo "3) Удалить"
         echo "4) Назад"
         read -p "Выберите действие [1-4]: " sub_choice
         case $sub_choice in
-            1) show_mtproto_link; read -p "Нажмите Enter..."; return ;;
+            1) show_mtproto_link; read -p "Enter..."; return ;;
             2) docker stop mtproto-proxy >/dev/null && docker rm mtproto-proxy >/dev/null ;;
             3) 
-                local OLD_PORT=$(docker inspect mtproto-proxy --format='{{(index (index .NetworkSettings.Ports "8080/tcp") 0).HostPort}}' 2>/dev/null)
+                local OLD_PORT=$(docker inspect mtproto-proxy --format='{{(index (index .NetworkSettings.Ports "3128/tcp") 0).HostPort}}' 2>/dev/null)
                 docker stop mtproto-proxy && docker rm mtproto-proxy
                 if [ ! -z "$OLD_PORT" ] && command -v ufw &> /dev/null; then sudo ufw delete allow "$OLD_PORT"/tcp; fi
                 log_success "Прокси удален."; return ;;
@@ -59,24 +59,18 @@ run_mtproto_install() {
     read -p "Домен маскировки [google.com]: " TG_DOMAIN
     TG_DOMAIN=${TG_DOMAIN:-google.com}
 
-    if netstat -tuln 2>/dev/null | grep -q ":$TG_PORT "; then
-        log_error "Порт $TG_PORT уже занят! Выберите другой."
-        read -p "Enter..."
-        return 1
-    fi
-
     if command -v ufw &> /dev/null && ufw status | grep -q "active"; then
-        log_info "Открытие порта $TG_PORT в UFW..."
         sudo ufw allow "$TG_PORT"/tcp > /dev/null
     fi
 
     local FINAL_SECRET=$(openssl rand -hex 16)
     
-    log_info "Запуск контейнера..."
+    log_info "Запуск контейнера (порт 3128 внутри)..."
+    # ИСПРАВЛЕНО: мапим внешний порт на 3128
     docker run -d \
         --name mtproto-proxy \
         --restart always \
-        -p "$TG_PORT":8080 \
+        -p "$TG_PORT":3128 \
         -e MTG_SECRET="$FINAL_SECRET" \
         -e MTG_DOMAIN="$TG_DOMAIN" \
         ghcr.io/9seconds/mtg:2
@@ -86,8 +80,7 @@ run_mtproto_install() {
         sleep 2
         show_mtproto_link
     else
-        log_error "Ошибка запуска Docker."
+        log_error "Ошибка Docker."
     fi
-    echo ""
-    read -p "Нажмите Enter, чтобы вернуться в меню..."
+    read -p "Нажмите Enter..."
 }
