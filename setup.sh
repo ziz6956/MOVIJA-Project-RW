@@ -7,11 +7,14 @@ set -euo pipefail
 
 # Глобальные переменные
 export INSTALL_TYPE="panel"
-export WORK_DIR=$(pwd)
+export WORK_DIR=$(dirname "$(readlink -f "$0")")
 export MODULES_DIR="$WORK_DIR/modules"
 export CONFIGS_DIR="$WORK_DIR/configs"
 export ENV_PATH="$WORK_DIR/.env"
 export COMPOSE_DIR="$WORK_DIR"
+
+# Выдаем права на исполнение всем модулям
+chmod +x "$MODULES_DIR"/*.sh
 
 # 1. Проверка целостности самого репозитория
 if [ ! -d "$MODULES_DIR" ] || [ ! -f "$MODULES_DIR/00_logger.sh" ]; then
@@ -39,17 +42,19 @@ check_dependencies() {
 show_menu() {
     log_section "ГЛАВНОЕ МЕНЮ MOVIJA-Project-RW"
     echo "1) Полная установка панели (на чистую Ubuntu)"
-    echo "2) Только бэкап сертификатов (создать архив с хешем)"
-    echo "3) Только восстановление сертификатов (из архива)"
-    echo "4) Выход"
+    echo "2) Установить Telegram-бота Bedolaga (к уже работающей панели)"
+    echo "3) Только бэкап сертификатов (создать архив с хешем)"
+    echo "4) Только восстановление сертификатов (из архива)"
+    echo "5) Выход"
     echo -e "------------------------------------------"
-    read -p "Выберите действие [1-4]: " main_choice
+    read -p "Выберите действие [1-5]: " main_choice
 
     case $main_choice in
         1) run_full_install ;;
-        2) source "$MODULES_DIR/08_backup_manager.sh"; create_certificates_backup ;;
-        3) source "$MODULES_DIR/08_backup_manager.sh"; restore_certificates ;;
-        4) log_info "Выход."; exit 0 ;;
+        2) source "$MODULES_DIR/13_bedolaga_install.sh"; run_bot_install ;;
+        3) source "$MODULES_DIR/08_backup_manager.sh"; create_certificates_backup ;;
+        4) source "$MODULES_DIR/08_backup_manager.sh"; restore_certificates ;;
+        5) log_info "Выход."; exit 0 ;;
         *) log_error "Неверный выбор."; show_menu ;;
     esac
 }

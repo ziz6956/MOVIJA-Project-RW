@@ -1,3 +1,6 @@
 {$FRONT_END_DOMAIN}:{$PANEL_PORT} {
     reverse_proxy remnawave:3000
 }
+{$BOT_API_DOMAIN} {
+    reverse_proxy bedolaga-bot:8080
+}
