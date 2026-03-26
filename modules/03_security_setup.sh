@@ -10,9 +10,15 @@ run_security_setup() {
     sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
     sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
 
+    # Настройка сокета
     mkdir -p /etc/systemd/system/ssh.socket.d
     cp "$CONFIGS_DIR/security/ssh_listen.conf" /etc/systemd/system/ssh.socket.d/listen.conf
     sed -i "s/__SSH_PORT__/$SSH_PORT/g" /etc/systemd/system/ssh.socket.d/listen.conf
+
+    # --- СТРАХОВКА ОТ ПАДЕНИЯ SSHD В UBUNTU 24.04 ---
+    mkdir -p /run/sshd
+    chmod 0755 /run/sshd
+    # ------------------------------------------------
 
     systemctl daemon-reload
     systemctl restart ssh.socket
@@ -33,6 +39,11 @@ run_security_setup() {
     if [ "$INSTALL_TYPE" == "node" ]; then
         ufw allow 443/udp comment 'Caddy HTTP3'
         ufw allow "$SUB_PORT"/tcp comment 'Caddy Subscriptions'
+        
+        # --- ПРАВИЛА ДЛЯ WARP SOCKS BRIDGE ---
+        ufw allow in on docker0 to 172.17.0.1 port 40000 proto tcp comment 'WARP Bridge TCP'
+        ufw allow in on docker0 to 172.17.0.1 port 40000 proto udp comment 'WARP Bridge UDP'
+
         if [ -n "${PANEL_IP:-}" ]; then
             ufw allow from "$PANEL_IP" to any port 2222 proto tcp comment 'Panel Access'
         fi

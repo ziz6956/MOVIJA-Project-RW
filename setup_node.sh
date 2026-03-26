@@ -45,9 +45,11 @@ show_node_menu() {
     echo "5) Диагностика VPS (Fusion Monster / goecs)"
     echo "6) Информация об анализаторе логов (Xray Log Analyzer)"
     echo "7) Установить Telegram MTProto Proxy (Fake-TLS)"
-    echo "8) Выход"
+    echo "8) Запустить WARP & Tor Manager от dignezzz (создание интерфейса)"
+    echo "9) Настроить WARP SOCKS Bridge (для Google/OpenAI)"
+    echo "10) Выход"
     echo -e "------------------------------------------"
-    read -p "Выберите действие [1-6]: " main_choice
+    read -p "Выберите действие [1-10]: " main_choice
 
     case $main_choice in
         1) run_full_node_install ;;
@@ -57,7 +59,11 @@ show_node_menu() {
         5) source "$MODULES_DIR/10_vps_check.sh"; run_vps_check ;;
         6) source "$MODULES_DIR/11_xray_analyzer.sh"; run_log_analyzer_info ;;        
         7) source "$MODULES_DIR/12_mtproto_proxy.sh"; run_mtproto_install ;;
-        8) exit 0 ;;
+        8) echo -e "\n[INFO] Скачивание и запуск WARP & Tor Manager..."
+        wget -O wtm.sh https://raw.githubusercontent.com/dignezzz/remnawave-scripts/main/wtm.sh && chmod +x wtm.sh && ./wtm.sh
+        ;;
+        9) source "$MODULES_DIR/14_warp_bridge.sh"; run_warp_bridge_setup ;;
+        10) exit 0 ;;
         *) show_node_menu ;;
     esac
 }
@@ -91,6 +97,7 @@ run_full_node_install() {
     source "$MODULES_DIR/06_env_generator.sh"
     source "$MODULES_DIR/07_deploy_cluster.sh"
     source "$MODULES_DIR/08_backup_manager.sh"
+    source "$MODULES_DIR/14_warp_bridge.sh"
 
     run_preflight_checks
     run_env_generator
@@ -100,6 +107,10 @@ run_full_node_install() {
     run_docker_install
     run_node_prepare
     run_backup_logic
+    run_deploy_cluster
+    run_node_prepare
+    run_backup_logic
+    run_warp_bridge_setup
     run_deploy_cluster
 }
 

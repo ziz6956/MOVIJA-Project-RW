@@ -1,0 +1,62 @@
+#!/bin/bash
+# ==========================================
+# Module 14: WARP SOCKS Bridge Setup
+# ==========================================
+
+run_warp_bridge_setup() {
+    log_section "НАСТРОЙКА WARP SOCKS BRIDGE"
+
+    # 1. Проверка наличия интерфейса warp
+    if ! ip link show warp > /dev/null 2>&1; then
+        log_warn "Интерфейс 'warp' не найден. Убедитесь, что туннель поднят."
+        log_info "Рекомендуется использовать WTM (Warp Terminal Manager) для создания интерфейса."
+        return 1
+    fi
+
+    # 2. Установка Xray на хост (если нет)
+    if ! command -v xray &> /dev/null; then
+        log_info "Установка Xray на хост..."
+        bash <(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)
+    fi
+
+    # 3. Создание конфигурации моста
+    log_info "Создание конфига /usr/local/etc/xray/config.json..."
+    mkdir -p /usr/local/etc/xray
+    cat <<EOF > /usr/local/etc/xray/config.json
+{
+  "log": { "loglevel": "warning" },
+  "inbounds": [
+    {
+      "listen": "0.0.0.0",
+      "port": 40000,
+      "protocol": "socks",
+      "settings": { "auth": "noauth", "udp": true },
+      "tag": "socks-in"
+    }
+  ],
+  "outbounds": [
+    {
+      "protocol": "freedom",
+      "settings": { "domainStrategy": "UseIP" },
+      "streamSettings": { "sockopt": { "interface": "warp" } },
+      "tag": "warp-out"
+    }
+  ]
+}
+EOF
+
+    # 4. Перезапуск службы
+    log_info "Перезапуск службы Xray..."
+    systemctl daemon-reload
+    systemctl enable xray
+    systemctl restart xray
+    log_success "Xray Bridge запущен на 172.17.0.1:40000"
+
+    # 5. Тест соединения из контейнера
+    log_info "Проверка связи из контейнера remnanode..."
+    if docker exec remnanode python3 -c "import socket; s = socket.socket(); s.settimeout(2); result = s.connect_ex(('172.17.0.1', 40000)); exit(result)" > /dev/null 2>&1; then
+        log_success "СВЯЗЬ ЕСТЬ! Мост успешно принимает трафик из Docker."
+    else
+        log_error "ОШИБКА: Контейнер не может достучаться до моста на 172.17.0.1:40000. Проверьте UFW."
+    fi
+}

@@ -1,19 +1,19 @@
 services:
   remnanode:
     container_name: remnanode
-    image: remnawave/node:2.6.1       # <--- Жестко зафиксировали версию ноды
+    image: remnawave/node:2.6.1
     restart: always
     environment:
       - NODE_PORT=2222
       - SECRET_KEY=${NODE_SECRET_KEY}
     ports:
       - "2222:2222"
-      - "443:443"                     # <--- Xray забрал себе 443 порт для VLESS
+      - "443:443"
     networks:
       - remnawave-network
 
   remnawave-subscription-page:
-    image: remnawave/subscription-page:7.1.8  # <--- Жестко зафиксировали версию страницы
+    image: remnawave/subscription-page:7.1.8
     container_name: remnawave-subscription-page
     restart: always
     environment:
@@ -32,7 +32,7 @@ services:
     restart: always
     ports:
       - "80:80"
-      - "${SUB_PORT}:443"             # <--- Caddy теперь слушает сгенерированный порт (2053, 8443 и т.д.)
+      - "${SUB_PORT}:443"
     environment:
       - SUB_DOMAIN=${SUB_DOMAIN}      
       - CABINET_DOMAIN=${CABINET_DOMAIN} 
