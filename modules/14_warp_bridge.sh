@@ -50,13 +50,25 @@ EOF
     systemctl daemon-reload
     systemctl enable xray
     systemctl restart xray
-    log_success "Xray Bridge запущен на 172.17.0.1:40000"
+    log_success "Xray Bridge запущен и слушает порт 40000"
 
-    # 5. Тест соединения из контейнера
+# 5. Проверка связи из контейнера
     log_info "Проверка связи из контейнера remnanode..."
-    if docker exec remnanode python3 -c "import socket; s = socket.socket(); s.settimeout(2); result = s.connect_ex(('172.17.0.1', 40000)); exit(result)" > /dev/null 2>&1; then
+    
+    # Получаем IP-адрес шлюза докер-сети
+    local DOCKER_GATEWAY=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.Gateway}}{{end}}' remnanode)
+    
+    if [ -z "$DOCKER_GATEWAY" ]; then
+        log_warn "Не удалось определить шлюз Docker. Используем 172.17.0.1 по умолчанию."
+        DOCKER_GATEWAY="172.17.0.1"
+    fi
+
+    log_info "Тестируем мост через шлюз: $DOCKER_GATEWAY"
+    
+    # Слово "warp" без "on", так как иногда Cloudflare отдает warp=plus
+    if docker run --rm --network remnawave-network curlimages/curl curl -s --socks5 "$DOCKER_GATEWAY:40000" https://cloudflare.com/cdn-cgi/trace | grep -q "warp="; then
         log_success "СВЯЗЬ ЕСТЬ! Мост успешно принимает трафик из Docker."
     else
-        log_error "ОШИБКА: Контейнер не может достучаться до моста на 172.17.0.1:40000. Проверьте UFW."
+        log_error "ОШИБКА: Контейнер не может достучаться до моста на $DOCKER_GATEWAY:40000. Проверьте фаервол."
     fi
 }

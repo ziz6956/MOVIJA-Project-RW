@@ -41,8 +41,11 @@ run_security_setup() {
         ufw allow "$SUB_PORT"/tcp comment 'Caddy Subscriptions'
         
         # --- ПРАВИЛА ДЛЯ WARP SOCKS BRIDGE ---
-        ufw allow in on docker0 to 172.17.0.1 port 40000 proto tcp comment 'WARP Bridge TCP'
-        ufw allow in on docker0 to 172.17.0.1 port 40000 proto udp comment 'WARP Bridge UDP'
+        # Разрешаем доступ к порту моста из подсетей Docker (172.16.0.0/12)
+        ufw allow from 172.16.0.0/12 to any port 40000 proto tcp comment 'WARP Bridge TCP'
+        ufw allow from 172.16.0.0/12 to any port 40000 proto udp comment 'WARP Bridge UDP'
+        ufw allow in on docker0 to any port 40000
+        ufw allow in on br-+ to any port 40000
 
         if [ -n "${PANEL_IP:-}" ]; then
             ufw allow from "$PANEL_IP" to any port 2222 proto tcp comment 'Panel Access'

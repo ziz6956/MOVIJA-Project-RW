@@ -108,10 +108,24 @@ run_full_node_install() {
     run_node_prepare
     run_backup_logic
     run_deploy_cluster
-    run_node_prepare
-    run_backup_logic
-    run_warp_bridge_setup
-    run_deploy_cluster
+
+    # 3. Финальное уведомление вместо автоматического запуска
+    echo -e "\n"
+    log_section "УСТАНОВКА УЗЛА ЗАВЕРШЕНА УСПЕШНО!"
+    
+    echo -e "\033[1;32m✅ Все основные компоненты и Docker-контейнеры запущены.\033[0m"
+    echo -e "----------------------------------------------------------------------"
+    echo -e "\033[1;33m[ВАЖНО] СЛЕДУЮЩИЕ ШАГИ ДЛЯ НАСТРОЙКИ ОБХОДА БЛОКИРОВОК:\033[0m"
+    echo -e "Для того чтобы OpenAI и Google работали корректно, выполните вручную:"
+    echo -e ""
+    echo -e "  1) Выберите пункт \033[1;36m8\033[0m в меню (Запустить WARP & Tor Manager от dignezzz (создание интерфейса))."
+    echo -e "     (Следуйте инструкциям WTM для регистрации Free-аккаунта)."
+    echo -e ""
+    echo -e "  2) После успешного запуска WARP выберите пункт \033[1;36m9\033[0m (Настроить WARP SOCKS Bridge (для Google/OpenAI))."
+    echo -e "     (Это свяжет Docker-контейнеры с туннелем Cloudflare)."
+    echo -e "----------------------------------------------------------------------"
+    echo -e "\nНажмите Enter, чтобы вернуться в главное меню..."
+    read -r
 }
 
 check_dependencies
