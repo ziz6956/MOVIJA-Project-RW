@@ -3,6 +3,81 @@
 # Module 12: Telegram MTProto Proxy (mtg v2)
 # ==========================================
 
+# Вспомогательная функция для получения данных из Docker Hub
+get_latest_mtg_info() {
+    local API_URL="https://hub.docker.com/v2/repositories/nineseconds/mtg/tags/2"
+    local RESPONSE=$(curl -s "$API_URL")
+    
+    # Извлекаем дату последнего обновления
+    local LAST_UPDATED=$(echo "$RESPONSE" | grep -oP '"last_updated":"\K[^"]+' | sed 's/T/ /;s/Z//')
+    echo "$LAST_UPDATED"
+}
+
+check_mtproto_updates() {
+    log_section "ПРОВЕРКА ОБНОВЛЕНИЙ MTPROTO"
+
+    # 1. Получаем локальную версию
+    local LOCAL_VER=$(docker exec mtproto-proxy /mtg --version 2>/dev/null)
+    if [ -z "$LOCAL_VER" ]; then
+        log_error "Не удалось определить локальную версию. Контейнер запущен?"
+        return 1
+    fi
+    echo -e "Текущая версия на сервере: ${C_CYAN}$LOCAL_VER${C_NC}"
+
+    # 2. Получаем инфо с Docker Hub
+    log_info "Запрос данных с Docker Hub..."
+    local REMOTE_DATE=$(get_latest_mtg_info)
+    
+    if [ -z "$REMOTE_DATE" ]; then
+        log_error "Не удалось связаться с Docker Hub."
+        return 1
+    fi
+    echo -e "Последнее обновление в репозитории (тег :2): ${C_GREEN}$REMOTE_DATE (UTC)${C_NC}"
+    echo -e "--------------------------------------------------------"
+
+    read -p "Желаете выполнить принудительное обновление образа? [y/N]: " confirm
+    if [[ "$confirm" =~ ^[Yy]$ ]]; then
+        perform_mtproto_update
+    fi
+}
+
+perform_mtproto_update() {
+    log_info "Начало процесса бесшовного обновления..."
+
+    # 1. Извлекаем текущие настройки из работающего контейнера
+    local OLD_SECRET=$(docker inspect mtproto-proxy --format='{{range .Config.Env}}{{println .}}{{end}}' | grep '^MTG_SECRET=' | cut -d'=' -f2)
+    local OLD_PORT=$(docker inspect mtproto-proxy --format='{{(index (index .NetworkSettings.Ports "3128/tcp") 0).HostPort}}')
+
+    if [ -z "$OLD_SECRET" ] || [ -z "$OLD_PORT" ]; then
+        log_error "Ошибка: не удалось извлечь текущие параметры прокси."
+        return 1
+    fi
+
+    log_info "Настройки сохранены (Port: $OLD_PORT). Подтягиваем новый образ..."
+
+    # 2. Скачиваем новый образ (это не прерывает работу старого контейнера)
+    docker pull nineseconds/mtg:2
+
+    # 3. "Горячая" замена (простой составит ~1-2 секунды)
+    log_info "Перезапуск контейнера..."
+    docker stop mtproto-proxy >/dev/null
+    docker rm mtproto-proxy >/dev/null
+
+    docker run -d \
+        --name mtproto-proxy \
+        --restart always \
+        -p "$OLD_PORT":3128 \
+        -e MTG_SECRET="$OLD_SECRET" \
+        nineseconds/mtg:2
+
+    if [ $? -eq 0 ]; then
+        log_success "Обновление завершено! Прокси работает на новой версии."
+        docker exec mtproto-proxy /mtg --version
+    else
+        log_error "Критическая ошибка при перезапуске."
+    fi
+}
+
 show_mtproto_link() {
     local SERVER_IP=$(curl -s --max-time 5 https://api.ipify.org || curl -s --max-time 5 https://ifconfig.me)
     local CONTAINER_INFO=$(docker inspect mtproto-proxy 2>/dev/null)
@@ -35,15 +110,17 @@ run_mtproto_install() {
     if [ "$(docker ps -aq -f name=mtproto-proxy)" ]; then
         log_section "УПРАВЛЕНИЕ MTPROTO"
         echo "1) Показать ссылку для подключения"
-        echo "2) Переустановить (сменить порт/домен)"
-        echo "3) Удалить прокси"
-        echo "4) Назад"
-        read -p "Выберите действие [1-4]: " sub_choice
+        echo "2) Проверить обновления (Version Check)"
+        echo "3) Переустановить (сменить порт/домен)"
+        echo "4) Удалить прокси"
+        echo "5) Назад"
+        read -p "Выберите действие [1-5]: " sub_choice
         
         case $sub_choice in
             1) show_mtproto_link; read -p "Нажмите Enter..."; return ;;
-            2) docker stop mtproto-proxy >/dev/null && docker rm mtproto-proxy >/dev/null ;;
-            3) 
+            2) check_mtproto_updates; read -p "Нажмите Enter..."; return ;;
+            3) docker stop mtproto-proxy >/dev/null && docker rm mtproto-proxy >/dev/null ;;
+            4)
                 local OLD_PORT=$(docker inspect mtproto-proxy --format='{{(index (index .NetworkSettings.Ports "3128/tcp") 0).HostPort}}' 2>/dev/null)
                 docker stop mtproto-proxy && docker rm mtproto-proxy
                 if [ ! -z "$OLD_PORT" ] && command -v ufw &> /dev/null; then sudo ufw delete allow "$OLD_PORT"/tcp; fi
