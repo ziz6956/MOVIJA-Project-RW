@@ -3,14 +3,21 @@
 # Module 12: Telegram MTProto Proxy (mtg v2)
 # ==========================================
 
-# Вспомогательная функция для получения данных из Docker Hub
+# Вспомогательная функция для получения данных из GitHub и Docker Hub
 get_latest_mtg_info() {
-    local API_URL="https://hub.docker.com/v2/repositories/nineseconds/mtg/tags/2"
-    local RESPONSE=$(curl -s "$API_URL")
-    
-    # Извлекаем дату последнего обновления
-    local LAST_UPDATED=$(echo "$RESPONSE" | grep -oP '"last_updated":"\K[^"]+' | sed 's/T/ /;s/Z//')
-    echo "$LAST_UPDATED"
+    # 1. Тянем версию с GitHub (там живет имя релиза, например v2.2.8)
+    local GH_API="https://api.github.com/repos/9seconds/mtg/releases/latest"
+    local LATEST_VER=$(curl -s "$GH_API" | grep -oP '"tag_name":\s*"\K[^"]+')
+
+    # 2. Тянем дату обновления с Docker Hub (чтобы знать, свежий ли образ под тегом :2)
+    local DH_API="https://hub.docker.com/v2/repositories/nineseconds/mtg/tags/2"
+    local LAST_UPDATED=$(curl -s "$DH_API" | grep -oP '"last_updated":"\K[^"]+' | sed 's/T/ /;s/Z//')
+
+    if [ -z "$LATEST_VER" ]; then
+        echo "v2.x.x ($LAST_UPDATED)"
+    else
+        echo "$LATEST_VER ($LAST_UPDATED)"
+    fi
 }
 
 check_mtproto_updates() {
