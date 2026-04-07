@@ -51,22 +51,27 @@ check_mtproto_updates() {
 perform_mtproto_update() {
     log_info "Начало процесса бесшовного обновления..."
 
-    # 1. Извлекаем текущие настройки из работающего контейнера
-    local OLD_SECRET=$(docker inspect mtproto-proxy --format='{{range .Config.Env}}{{println .}}{{end}}' | grep '^MTG_SECRET=' | cut -d'=' -f2)
-    local OLD_PORT=$(docker inspect mtproto-proxy --format='{{(index (index .NetworkSettings.Ports "3128/tcp") 0).HostPort}}')
+    # 1. Извлекаем секрет (ищем в переменных И в аргументах команды Cmd)
+    # Регулярка ищет либо значение после MTG_SECRET=, либо любую hex-строку длиннее 32 символов
+    local OLD_SECRET=$(docker inspect mtproto-proxy --format='{{range .Config.Env}}{{println .}}{{end}} {{range .Config.Cmd}}{{println .}}{{end}}' | grep -oP '(?<=MTG_SECRET=)[^ ]+|[a-f0-9]{32,}' | head -n 1)
+    
+    # 2. Извлекаем порт (динамически берем любой HostPort)
+    local OLD_PORT=$(docker inspect mtproto-proxy --format='{{range $p, $conf := .NetworkSettings.Ports}}{{with (index $conf 0)}}{{.HostPort}}{{end}}{{break}}{{end}}')
 
+    # Проверка на успех
     if [ -z "$OLD_SECRET" ] || [ -z "$OLD_PORT" ]; then
-        log_error "Ошибка: не удалось извлечь текущие параметры прокси."
+        log_error "Ошибка: не удалось извлечь параметры автоматически."
+        echo "DEBUG: Secret found: $OLD_SECRET"
+        echo "DEBUG: Port found: $OLD_PORT"
         return 1
     fi
 
-    log_info "Настройки сохранены (Port: $OLD_PORT). Подтягиваем новый образ..."
+    log_info "Параметры найдены (Port: $OLD_PORT). Секрет получен. Обновляемся..."
 
-    # 2. Скачиваем новый образ (это не прерывает работу старого контейнера)
+    # 3. Скачиваем новый образ
     docker pull nineseconds/mtg:2
 
-    # 3. "Горячая" замена (простой составит ~1-2 секунды)
-    log_info "Перезапуск контейнера..."
+    # 4. Перезапуск (ВАЖНО: запускаем через переменную окружения, как в твоем основном скрипте)
     docker stop mtproto-proxy >/dev/null
     docker rm mtproto-proxy >/dev/null
 
@@ -78,10 +83,10 @@ perform_mtproto_update() {
         nineseconds/mtg:2
 
     if [ $? -eq 0 ]; then
-        log_success "Обновление завершено! Прокси работает на новой версии."
+        log_success "Обновление завершено! Теперь ты на v2.2.8."
         docker exec mtproto-proxy /mtg --version
     else
-        log_error "Критическая ошибка при перезапуске."
+        log_error "Критическая ошибка при запуске."
     fi
 }
 
