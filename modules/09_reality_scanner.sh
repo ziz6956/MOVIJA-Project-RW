@@ -24,10 +24,48 @@ run_reality_scanner() {
     wget -q --show-progress -O RealiTLScanner-linux-64 "https://github.com/XTLS/RealiTLScanner/releases/download/${VERSION}/RealiTLScanner-linux-64"
     chmod +x RealiTLScanner-linux-64
 
-    local PUBLIC_IPV4=$(curl -4 -s icanhazip.com || echo "")
+    log_info "Определение IPv4 адресов сервера..."
+
+    # Получаем список локальных белых IPv4 (исключаем локалхост 127.x и серые сети 10.x, 172.16-31.x, 192.168.x)
+    # Команда ip вытягивает адреса прямо из активных интерфейсов (что надежнее чтения YAML)
+    local LOCAL_IPS=($(ip -4 addr show scope global | grep inet | awk '{print $2}' | cut -d/ -f1 | grep -vE '^(10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.)'))
+    local PUBLIC_IPV4=""
+
+    if [ ${#LOCAL_IPS[@]} -eq 1 ]; then
+        # Нашли ровно один IP
+        PUBLIC_IPV4="${LOCAL_IPS[0]}"
+        log_info "Обнаружен локальный IPv4: ${PUBLIC_IPV4}"
+
+    elif [ ${#LOCAL_IPS[@]} -gt 1 ]; then
+        # Нашли несколько IP — предлагаем выбор
+        log_info "Обнаружено несколько IPv4 интерфейсов:"
+        local i=1
+        for ip in "${LOCAL_IPS[@]}"; do
+            echo "  $i) $ip"
+            ((i++))
+        done
+        
+        while true; do
+            read -p "Выберите IP для сканирования подсети [1-${#LOCAL_IPS[@]}]: " choice
+            if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#LOCAL_IPS[@]}" ]; then
+                PUBLIC_IPV4="${LOCAL_IPS[$((choice-1))]}"
+                log_info "Выбран IP: $PUBLIC_IPV4"
+                break
+            else
+                log_error "Неверный выбор. Введите число от 1 до ${#LOCAL_IPS[@]}."
+            fi
+        done
+
+    else
+        # IP не найдены локально (например, сервер за NAT) — используем старую логику
+        log_warn "Локальные публичные IPv4 не найдены. Обращение к внешнему сервису (icanhazip)..."
+        PUBLIC_IPV4=$(curl -4 -s --max-time 3 icanhazip.com || echo "")
+    fi
+
     if [ -z "$PUBLIC_IPV4" ]; then
-        log_error "Не удалось определить внешний IPv4 адрес сервера."
+        log_error "Критическая ошибка: не удалось определить внешний IPv4 адрес."
         cd "$WORK_DIR"
+        rm -rf "$SCAN_DIR" # Не забываем убирать за собой даже при ошибке
         return 1
     fi
 
