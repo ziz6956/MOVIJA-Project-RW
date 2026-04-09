@@ -1,15 +1,13 @@
 #!/bin/bash
 # ==========================================
-# Module 12: Telegram MTProto Proxy (mtg v2)
+# Module 12: Telegram MTProto Proxy (mtg v2) - Host Network & CONNMARK
 # ==========================================
 
 # Вспомогательная функция для получения данных из GitHub и Docker Hub
 get_latest_mtg_info() {
-    # 1. Тянем версию с GitHub (там живет имя релиза, например v2.2.8)
     local GH_API="https://api.github.com/repos/9seconds/mtg/releases/latest"
     local LATEST_VER=$(curl -s "$GH_API" | grep -oP '"tag_name":\s*"\K[^"]+')
 
-    # 2. Тянем дату обновления с Docker Hub (чтобы знать, свежий ли образ под тегом :2)
     local DH_API="https://hub.docker.com/v2/repositories/nineseconds/mtg/tags/2"
     local LAST_UPDATED=$(curl -s "$DH_API" | grep -oP '"last_updated":"\K[^"]+' | sed 's/T/ /;s/Z//')
 
@@ -23,7 +21,6 @@ get_latest_mtg_info() {
 check_mtproto_updates() {
     log_section "ПРОВЕРКА ОБНОВЛЕНИЙ MTPROTO"
 
-    # 1. Получаем локальную версию
     local LOCAL_VER=$(docker exec mtproto-proxy /mtg --version 2>/dev/null)
     if [ -z "$LOCAL_VER" ]; then
         log_error "Не удалось определить локальную версию. Контейнер запущен?"
@@ -31,7 +28,6 @@ check_mtproto_updates() {
     fi
     echo -e "Текущая версия на сервере: ${C_CYAN}$LOCAL_VER${C_NC}"
 
-    # 2. Получаем инфо с Docker Hub
     log_info "Запрос данных с Docker Hub..."
     local REMOTE_DATE=$(get_latest_mtg_info)
     
@@ -44,86 +40,85 @@ check_mtproto_updates() {
 
     read -p "Желаете выполнить принудительное обновление образа? [y/N]: " confirm
     if [[ "$confirm" =~ ^[Yy]$ ]]; then
-        perform_mtproto_update
-    fi
-}
-
-perform_mtproto_update() {
-    log_info "Начало процесса бесшовного обновления..."
-
-    # 1. Извлекаем секрет (ищем в переменных И в аргументах команды Cmd)
-    # Регулярка ищет либо значение после MTG_SECRET=, либо любую hex-строку длиннее 32 символов
-    local OLD_SECRET=$(docker inspect mtproto-proxy --format='{{range .Config.Env}}{{println .}}{{end}} {{range .Config.Cmd}}{{println .}}{{end}}' | grep -oP '(?<=MTG_SECRET=)[^ ]+|[a-f0-9]{32,}' | head -n 1)
-    
-    # 2. Извлекаем порт (динамически берем любой HostPort)
-    local OLD_PORT=$(docker inspect mtproto-proxy --format='{{range $p, $conf := .NetworkSettings.Ports}}{{with (index $conf 0)}}{{.HostPort}}{{end}}{{break}}{{end}}')
-
-    # Проверка на успех
-    if [ -z "$OLD_SECRET" ] || [ -z "$OLD_PORT" ]; then
-        log_error "Ошибка: не удалось извлечь параметры автоматически."
-        echo "DEBUG: Secret found: $OLD_SECRET"
-        echo "DEBUG: Port found: $OLD_PORT"
-        return 1
-    fi
-
-    log_info "Параметры найдены (Port: $OLD_PORT). Секрет получен. Обновляемся..."
-
-    # 3. Скачиваем новый образ
-    docker pull nineseconds/mtg:2
-
-    # 4. Перезапуск (ВАЖНО: запускаем через переменную окружения, как в твоем основном скрипте)
-    docker stop mtproto-proxy >/dev/null
-    docker rm mtproto-proxy >/dev/null
-
-    docker run -d \
-        --name mtproto-proxy \
-        --restart always \
-        -p "$OLD_PORT":3128 \
-        -e MTG_SECRET="$OLD_SECRET" \
-        nineseconds/mtg:2
-
-    if [ $? -eq 0 ]; then
-        log_success "Обновление завершено! Теперь ты на v2.2.8."
-        docker exec mtproto-proxy /mtg --version
-    else
-        log_error "Критическая ошибка при запуске."
+        log_info "Скачиваем новый образ..."
+        docker pull nineseconds/mtg:2
+        docker restart mtproto-proxy
+        log_success "Обновление завершено!"
     fi
 }
 
 show_mtproto_link() {
-    local SERVER_IP=$(curl -s --max-time 5 https://api.ipify.org || curl -s --max-time 5 https://ifconfig.me)
-    local CONTAINER_INFO=$(docker inspect mtproto-proxy 2>/dev/null)
-    
-    if [ -z "$CONTAINER_INFO" ]; then
-        log_error "Контейнер mtproto-proxy не найден."
+    if [ ! -f "/etc/mtg.toml" ]; then
+        log_error "Конфигурационный файл /etc/mtg.toml не найден."
         return 1
     fi
 
-    # Извлекаем нативный секрет v2 (он уже содержит в себе домен маскировки)
-    local SECRET=$(docker inspect mtproto-proxy --format='{{range .Config.Env}}{{println .}}{{end}}' | grep '^MTG_SECRET=' | cut -d'=' -f2)
-    local PORT=$(docker inspect mtproto-proxy --format='{{(index (index .NetworkSettings.Ports "3128/tcp") 0).HostPort}}')
-
-    # Формируем чистую ссылку по стандарту v2
-    # ВАЖНО: префикс dd и домен маскировки УЖЕ зашиты в этот SECRET
-    local TG_LINK="https://t.me/proxy?server=${SERVER_IP}&port=${PORT}&secret=${SECRET}"
+    local SERVER_IP=$(grep 'bind-to' /etc/mtg.toml | grep -oP '\d+\.\d+\.\d+\.\d+')
+    local SECRET=$(grep 'secret' /etc/mtg.toml | grep -oP '"\K[^"]+')
+    local TG_LINK="tg://proxy?server=${SERVER_IP}&port=443&secret=${SECRET}"
 
     log_section "ИНФОРМАЦИЯ О MTPROTO PROXY"
-    echo -e "Статус: ${C_GREEN}Запущен и работает${C_NC}"
+    echo -e "Статус: ${C_GREEN}Запущен и работает (Host Network)${C_NC}"
     echo -e "Сервер: $SERVER_IP"
-    echo -e "Порт: $PORT"
+    echo -e "Порт: 443"
     echo -e "--------------------------------------------------------"
     echo -e "${C_GREEN}ВАША ССЫЛКА ДЛЯ ПОДКЛЮЧЕНИЯ:${C_NC}"
     echo -e "${C_CYAN}${TG_LINK}${C_NC}"
     echo -e "--------------------------------------------------------"
-    echo -e "${C_YELLOW}СОВЕТ:${C_NC} Скопируйте ссылку и отправьте её себе в «Избранное» в Telegram."
+    echo -e "Просмотр логов в реальном времени:"
+    echo -e "${C_YELLOW}sudo docker logs --tail 20 -f mtproto-proxy${C_NC}"
+    echo -e "--------------------------------------------------------"
+}
+
+setup_asymmetric_routing() {
+    local TARGET_IP=$1
+    log_info "Настройка правил маршрутизации CONNMARK для $TARGET_IP..."
+
+    # Установка iptables-persistent для сохранения правил
+    if ! dpkg -l | grep -q iptables-persistent; then
+        log_info "Установка iptables-persistent..."
+        echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections
+        echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections
+        apt-get install -y iptables-persistent -qq > /dev/null
+    fi
+
+    # Очистка старых правил
+    iptables -t mangle -D PREROUTING -d "$TARGET_IP" -p tcp --dport 443 -m conntrack --ctstate NEW -j CONNMARK --set-mark 200 2>/dev/null || true
+    iptables -t mangle -D OUTPUT -m connmark --mark 200 -j CONNMARK --restore-mark 2>/dev/null || true
+
+    # Применение новых правил
+    iptables -t mangle -A PREROUTING -d "$TARGET_IP" -p tcp --dport 443 -m conntrack --ctstate NEW -j CONNMARK --set-mark 200
+    iptables -t mangle -A OUTPUT -m connmark --mark 200 -j CONNMARK --restore-mark
+    netfilter-persistent save > /dev/null
+
+    # Создание службы для сохранения ip rule (т.к. iptables-persistent не сохраняет маршруты ip)
+    cat <<EOF > /etc/systemd/system/mtg-fwmark.service
+[Unit]
+Description=Restore fwmark 200 for MTProto Asymmetric Routing
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/sbin/ip rule add fwmark 200 table 200
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    ip rule add fwmark 200 table 200 2>/dev/null || true
+    systemctl daemon-reload
+    systemctl enable --now mtg-fwmark.service > /dev/null 2>&1
+
+    log_success "Асимметричная маршрутизация настроена и сохранена в автозагрузку."
 }
 
 run_mtproto_install() {
     if [ "$(docker ps -aq -f name=mtproto-proxy)" ]; then
         log_section "УПРАВЛЕНИЕ MTPROTO"
-        echo "1) Показать ссылку для подключения"
+        echo "1) Показать ссылку для подключения и логи"
         echo "2) Проверить обновления (Version Check)"
-        echo "3) Переустановить (сменить порт/домен)"
+        echo "3) Переустановить (сменить IP/домен)"
         echo "4) Удалить прокси"
         echo "5) Назад"
         read -p "Выберите действие [1-5]: " sub_choice
@@ -133,38 +128,89 @@ run_mtproto_install() {
             2) check_mtproto_updates; read -p "Нажмите Enter..."; return ;;
             3) docker stop mtproto-proxy >/dev/null && docker rm mtproto-proxy >/dev/null ;;
             4)
-                local OLD_PORT=$(docker inspect mtproto-proxy --format='{{(index (index .NetworkSettings.Ports "3128/tcp") 0).HostPort}}' 2>/dev/null)
                 docker stop mtproto-proxy && docker rm mtproto-proxy
-                if [ ! -z "$OLD_PORT" ] && command -v ufw &> /dev/null; then sudo ufw delete allow "$OLD_PORT"/tcp; fi
-                log_success "Прокси удален."; return ;;
+                rm -f /etc/mtg.toml
+                systemctl disable --now mtg-fwmark.service 2>/dev/null || true
+                rm -f /etc/systemd/system/mtg-fwmark.service
+                log_success "Прокси и настройки маршрутизации удалены."; return ;;
             *) return ;;
         esac
     fi
 
-    log_section "УСТАНОВКА MTPROTO PROXY (mtg v2)"
+    log_section "УСТАНОВКА MTPROTO PROXY (HOST NETWORK)"
     
-    read -p "Введите порт для прокси [8443]: " TG_PORT
-    TG_PORT=${TG_PORT:-8443}
-    read -p "Введите домен маскировки [google.com]: " TG_DOMAIN
-    TG_DOMAIN=${TG_DOMAIN:-google.com}
-
-    # Открытие портов в Firewall
-    if command -v ufw &> /dev/null && ufw status | grep -q "active"; then
-        log_info "Открытие порта $TG_PORT в UFW..."
-        sudo ufw allow "$TG_PORT"/tcp > /dev/null
+    # 1. Поиск локальных IP адресов
+    local LOCAL_IPS=($(ip -4 addr show scope global | grep inet | awk '{print $2}' | cut -d/ -f1 | grep -vE '^(10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.)'))
+    
+    if [ ${#LOCAL_IPS[@]} -eq 0 ]; then
+        log_error "Не найдено публичных IPv4 адресов на сервере."
+        return 1
     fi
 
-    # Генерируем секрет через временный запуск контейнера (согласно README)
-    log_info "Генерация нативного секрета для $TG_DOMAIN..."
+    log_info "Анализ интерфейсов и занятости порта 443:"
+    local i=1
+    for ip in "${LOCAL_IPS[@]}"; do
+        if ss -tulpn | grep -q "$ip:443"; then
+            echo -e "  $i) $ip - ${C_RED}Порт 443 ЗАНЯТ${C_NC} (Здесь работает Xray/Caddy)"
+        else
+            echo -e "  $i) $ip - ${C_GREEN}Порт 443 СВОБОДЕН${C_NC} (Рекомендуется для MTProxy)"
+        fi
+        ((i++))
+    done
+
+    # 2. Выбор IP
+    local SELECTED_IP=""
+    while true; do
+        read -p "Выберите номер IP-адреса для MTProto [1-${#LOCAL_IPS[@]}]: " choice
+        if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#LOCAL_IPS[@]}" ]; then
+            SELECTED_IP="${LOCAL_IPS[$((choice-1))]}"
+            break
+        else
+            log_error "Неверный выбор."
+        fi
+    done
+    log_success "Выбран IP-адрес: $SELECTED_IP"
+
+    # 3. Интеграция со сканером SNI
+    if [ -f "$MODULES_DIR/09_reality_scanner.sh" ]; then
+        echo ""
+        log_info "Сейчас будет запущен сканер для поиска идеального домена маскировки."
+        echo -e "${C_YELLOW}ВАЖНО: В меню сканера выберите тот же IP-адрес ($SELECTED_IP)!${C_NC}"
+        sleep 3
+        source "$MODULES_DIR/09_reality_scanner.sh"
+        run_reality_scanner
+    fi
+
+    # 4. Ввод домена и генерация
+    log_section "НАСТРОЙКА FAKE TLS"
+    read -p "Введите домен маскировки (из результатов выше или свой) [google.com]: " TG_DOMAIN
+    TG_DOMAIN=${TG_DOMAIN:-google.com}
+
+    log_info "Генерация секрета для $TG_DOMAIN..."
     local FINAL_SECRET=$(docker run --rm nineseconds/mtg:2 generate-secret "$TG_DOMAIN")
 
-    log_info "Запуск основного контейнера..."
-    # Мапим внешний порт на внутренний 3128 (стандарт mtg v2)
+    # 5. Создание конфига
+    log_info "Создание файла конфигурации /etc/mtg.toml..."
+    cat <<EOF > /etc/mtg.toml
+secret = "$FINAL_SECRET"
+bind-to = "$SELECTED_IP:443"
+EOF
+
+    # 6. Открытие порта в фаерволе
+    if command -v ufw &> /dev/null; then
+        ufw allow 443/tcp > /dev/null
+    fi
+
+    # 7. Настройка ядра (CONNMARK)
+    setup_asymmetric_routing "$SELECTED_IP"
+
+    # 8. Запуск контейнера в сети хоста
+    log_info "Запуск MTProto Proxy..."
     docker run -d \
         --name mtproto-proxy \
+        --network host \
         --restart always \
-        -p "$TG_PORT":3128 \
-        -e MTG_SECRET="$FINAL_SECRET" \
+        -v /etc/mtg.toml:/config.toml \
         nineseconds/mtg:2
 
     if [ $? -eq 0 ]; then
