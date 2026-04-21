@@ -27,4 +27,18 @@ run_docker_install() {
     else
         log_error "Плагин docker compose не найден! Убедитесь, что установка прошла корректно."
     fi
+
+    # Ограничение размера логов контейнеров
+    log_info "Настройка ротации логов Docker..."
+    cat <<EOF > /etc/docker/daemon.json
+{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  }
+}
+EOF
+    systemctl restart docker
+    log_success "Лимиты на размер логов Docker установлены."
 }

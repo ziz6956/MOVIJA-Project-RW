@@ -48,9 +48,10 @@ show_node_menu() {
     echo "8) Запустить WARP & Tor Manager от dignezzz (создание интерфейса)"
     echo "9) Настроить WARP SOCKS Bridge (для Google/OpenAI)"
     echo "10) Установить MTProxy Max (Модуль 15 - Тестовый)"
-    echo "11) Выход"
+    echo "11) Патч MTProxy Max (Модуль 16 - Тестовый)"
+    echo "12) Выход"
     echo -e "------------------------------------------"
-    read -p "Выберите действие [1-11]: " main_choice
+    read -p "Выберите действие [1-12]: " main_choice
 
     case $main_choice in
         1) run_full_node_install ;;
@@ -65,7 +66,8 @@ show_node_menu() {
         ;;
         9) source "$MODULES_DIR/14_warp_bridge.sh"; run_warp_bridge_setup ;;
         10) source "$MODULES_DIR/15_mtproxy_max.sh"; run_mtproxy_max_install ;;
-        11) exit 0 ;;
+        11) source "$MODULES_DIR/16_patch_mtproxy.sh"; run_mtproxy_patch ;;
+        12) exit 0 ;;
         *) show_node_menu ;;
     esac
 }

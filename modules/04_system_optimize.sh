@@ -32,4 +32,17 @@ run_system_optimize() {
     cp "$CONFIGS_DIR/system/99-custom-tuning.conf" /etc/sysctl.d/99-custom-tuning.conf
     sysctl -p /etc/sysctl.d/99-custom-tuning.conf > /dev/null 2>&1
     log_success "Оптимизация ядра завершена."
+
+    # 3. Настройка лимитов открытых файлов (Защита от Too many open files)
+    log_info "Установка системных лимитов (limits.conf)..."
+    
+    # Очищаем старые записи, если они были, и записываем новые
+    sed -i '/nofile/d' /etc/security/limits.conf
+    cat <<EOF >> /etc/security/limits.conf
+* soft nofile 65535
+* hard nofile 65535
+root soft nofile 65535
+root hard nofile 65535
+EOF
+    log_success "Лимиты файловых дескрипторов увеличены до 65535."
 }
