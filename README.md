@@ -24,7 +24,7 @@
 
 1. Клонируйте репозиторий:
    ```bash
-   git clone [https://github.com/ziz6956/MOVIJA-Project-RW.git](https://github.com/ziz6956/MOVIJA-Project-RW.git)
+   git clone https://github.com/ziz6956/MOVIJA-Project-RW.git
    cd MOVIJA-Project-RW
    ```
 
