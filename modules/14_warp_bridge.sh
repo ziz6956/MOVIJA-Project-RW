@@ -44,7 +44,7 @@ run_warp_bridge_setup() {
   "outbounds": [
     {
       "protocol": "freedom",
-      "settings": { "domainStrategy": "UseIP" },
+      "settings": { "domainStrategy": "UseIPv4" },
       "streamSettings": { "sockopt": { "interface": "warp" } },
       "tag": "warp-out"
     }
