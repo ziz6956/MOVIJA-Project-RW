@@ -44,14 +44,14 @@ show_node_menu() {
     echo "4) Поиск лучшего SNI для Reality (Сканер)"
     echo "5) Диагностика VPS (Fusion Monster / goecs)"
     echo "6) Информация об анализаторе логов (Xray Log Analyzer)"
-    echo "7) Установить Telegram MTProto Proxy (Fake-TLS)"
-    echo "8) Запустить WARP & Tor Manager от dignezzz (создание интерфейса)"
-    echo "9) Настроить WARP SOCKS Bridge (для Google/OpenAI)"
-    echo "10) Установить MTProxy Max (Модуль 15 - Тестовый)"
-    echo "11) Патч MTProxy Max (Модуль 16 - Тестовый)"
-    echo "12) Выход"
+#    echo "7) Установить Telegram MTProto Proxy (Fake-TLS)"
+    echo "7) Запустить WARP & Tor Manager от dignezzz (создание интерфейса)"
+    echo "8) Настроить WARP SOCKS Bridge (для Google/OpenAI)"
+    echo "9) Установить MTProxy Max"
+    echo "10) Патч MTProxy Max"
+    echo "11) Выход"
     echo -e "------------------------------------------"
-    read -p "Выберите действие [1-12]: " main_choice
+    read -p "Выберите действие [1-11]: " main_choice
 
     case $main_choice in
         1) run_full_node_install ;;
@@ -60,14 +60,14 @@ show_node_menu() {
         4) source "$MODULES_DIR/09_reality_scanner.sh"; run_reality_scanner ;;
         5) source "$MODULES_DIR/10_vps_check.sh"; run_vps_check ;;
         6) source "$MODULES_DIR/11_xray_analyzer.sh"; run_log_analyzer_info ;;        
-        7) source "$MODULES_DIR/12_mtproto_proxy.sh"; run_mtproto_install ;;
-        8) echo -e "\n[INFO] Скачивание и запуск WARP & Tor Manager..."
+#        7) source "$MODULES_DIR/12_mtproto_proxy.sh"; run_mtproto_install ;;
+        7) echo -e "\n[INFO] Скачивание и запуск WARP & Tor Manager..."
         wget -O wtm.sh https://raw.githubusercontent.com/dignezzz/remnawave-scripts/main/wtm.sh && chmod +x wtm.sh && ./wtm.sh
         ;;
-        9) source "$MODULES_DIR/14_warp_bridge.sh"; run_warp_bridge_setup ;;
-        10) source "$MODULES_DIR/15_mtproxy_max.sh"; run_mtproxy_max_install ;;
-        11) source "$MODULES_DIR/16_patch_mtproxy.sh"; run_mtproxy_patch ;;
-        12) exit 0 ;;
+        8) source "$MODULES_DIR/14_warp_bridge.sh"; run_warp_bridge_setup ;;
+        9) source "$MODULES_DIR/15_mtproxy_max.sh"; run_mtproxy_max_module ;;
+        10) source "$MODULES_DIR/16_patch_mtproxy.sh"; run_mtproxy_patch ;;
+        11) exit 0 ;;
         *) show_node_menu ;;
     esac
 }

@@ -98,7 +98,7 @@ EOF
     ./install.sh
 
     # 6. Очистка временных файлов
-    cd "$PROJECT_ROOT"
+    cd /opt
     rm -rf "$WORK_DIR"
 
     log_success "Модуль установки MTProxy Max завершил работу."

@@ -1,32 +1,52 @@
 #!/bin/bash
 
-# Путь к исполняемому файлу
-TARGET="/opt/mtproxymax/mtproxymax"
+run_mtproxy_patch() {
+    local TARGET="/opt/mtproxymax/mtproxymax"
 
-echo "🛠 Начинаю операцию по лечению MTProxyMax..."
+    echo "🛠 Начинаю операцию по лечению MTProxyMax..."
 
-# 1. Проверка на существование файла
-if [ ! -f "$TARGET" ]; then
-    echo "❌ Ошибка: Файл $TARGET не найден!"
-    exit 1
-fi
+    if [ ! -f "$TARGET" ]; then
+        echo "❌ Ошибка: Файл $TARGET не найден! Сначала установите MTProxy Max."
+        return 1
+    fi
 
-# 2. Патчим генератор конфига, чтобы он слушал наш CUSTOM_IP
-# Теперь он будет подставлять IP из настроек вместо 0.0.0.0
-echo "🌐 Привязываю IPv4 к переменной CUSTOM_IP..."
-sudo sed -i 's/listen_addr_ipv4 = "0.0.0.0"/listen_addr_ipv4 = "${CUSTOM_IP:-0.0.0.0}"/g' "$TARGET"
+    echo "🌐 Определение доступных IPv4 адресов..."
+    local LOCAL_IPS=($(ip -4 addr show scope global | grep inet | awk '{print $2}' | cut -d/ -f1 | grep -vE '^(10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.)'))
 
-# 3. Ослепляем проверку занятости портов
-# Заменяем условие проверки на заведомо ложное (false), чтобы скрипт не падал на старте
-echo "👁 Отключаю блокировку при занятом порте 443..."
-# Ищем блок проверки и нейтрализуем его
-sudo sed -i '3670,3685s/if .* then/if false; then/g' "$TARGET"
+    if [ ${#LOCAL_IPS[@]} -eq 0 ]; then
+        echo "❌ Ошибка: Не найдено публичных IPv4 адресов!"
+        return 1
+    fi
 
-# 4. Перезапуск и проверка статуса
-echo "🔄 Перезапускаю прокси для применения изменений..."
-sudo mtproxymax restart
+    echo "Доступные IP-адреса для привязки:"
+    for i in "${!LOCAL_IPS[@]}"; do
+        echo "  $((i+1))) ${LOCAL_IPS[$i]}"
+    done
 
-echo "📊 Текущий статус системы:"
-sudo mtproxymax status
+    read -p "Выберите номер IP, на котором должен работать MTProxy Max [1-${#LOCAL_IPS[@]}]: " ip_choice
 
-echo "✅ Операция завершена!"
+    if [[ "$ip_choice" =~ ^[0-9]+$ ]] && [ "$ip_choice" -ge 1 ] && [ "$ip_choice" -le "${#LOCAL_IPS[@]}" ]; then
+        local SELECTED_IP="${LOCAL_IPS[$((ip_choice-1))]}"
+        echo "✅ Выбран IP: $SELECTED_IP"
+    else
+        echo "❌ Неверный выбор!"
+        return 1
+    fi
+
+    echo "🌐 Привязываю IPv4 к $SELECTED_IP..."
+    sudo sed -i 's/listen_addr_ipv4 = "0.0.0.0"/listen_addr_ipv4 = "${CUSTOM_IP:-0.0.0.0}"/g' "$TARGET"
+    sudo sed -i "s/listen_addr_ipv4 = \"0.0.0.0\"/listen_addr_ipv4 = \"$SELECTED_IP\"/g" "$TARGET"
+    sudo sed -i "s/listen_addr_ipv4 = \"\${CUSTOM_IP:-0.0.0.0}\"/listen_addr_ipv4 = \"$SELECTED_IP\"/g" "$TARGET"
+
+    echo "👁 Отключаю блокировку при занятом порте 443..."
+    sudo sed -i 's/if ! is_port_available "$PROXY_PORT"; then/if false; then/g' "$TARGET"
+    sudo sed -i '/is already in use by another process/{n;s/return 1/# return 1/}' "$TARGET"
+
+    echo "🔄 Перезапускаю прокси для применения изменений..."
+    sudo mtproxymax restart
+
+    echo "📊 Текущий статус системы:"
+    sudo mtproxymax status
+
+    echo "✅ Операция завершена!"
+}
