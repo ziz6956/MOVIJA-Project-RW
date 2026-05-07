@@ -27,17 +27,24 @@ run_warp_bridge_setup() {
   "log": { "loglevel": "warning" },
   "inbounds": [
     {
-      "listen": "0.0.0.0",
+      "listen": "172.18.0.1",
       "port": 40000,
       "protocol": "socks",
       "settings": { "auth": "noauth", "udp": true },
       "tag": "socks-in"
+    },
+    {
+      "listen": "127.0.0.1",
+      "port": 40000,
+      "protocol": "socks",
+      "settings": { "auth": "noauth", "udp": true },
+      "tag": "socks-local"
     }
   ],
   "outbounds": [
     {
       "protocol": "freedom",
-      "settings": { "domainStrategy": "UseIP" },
+      "settings": { "domainStrategy": "UseIPv4" },
       "streamSettings": { "sockopt": { "interface": "warp" } },
       "tag": "warp-out"
     }
