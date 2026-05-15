@@ -29,8 +29,9 @@ run_deploy_cluster() {
         if [ -n "$DOMAIN" ]; then
             log_info "Проверка резолва домена $DOMAIN..."
             local RESOLVED_IP=$(getent ahostsv4 "$DOMAIN" | awk '{ print $1 }' | head -n 1 || echo "")
-            if [ "$RESOLVED_IP" != "$PUBLIC_IPV4" ]; then
-                log_warn "Домен $DOMAIN не указывает на этот сервер ($PUBLIC_IPV4)!"
+            local TARGET_IP=${NODE_IP:-$PUBLIC_IPV4}
+            if [ "$RESOLVED_IP" != "$TARGET_IP" ]; then
+                log_warn "Домен $DOMAIN не указывает на целевой IP ($TARGET_IP)!"
                 DNS_OK=false
             else
                 log_success "Домен $DOMAIN корректно настроен."
