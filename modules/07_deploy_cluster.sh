@@ -29,12 +29,20 @@ run_deploy_cluster() {
         if [ -n "$DOMAIN" ]; then
             log_info "Проверка резолва домена $DOMAIN..."
             local RESOLVED_IP=$(getent ahostsv4 "$DOMAIN" | awk '{ print $1 }' | head -n 1 || echo "")
-            local TARGET_IP=${NODE_IP:-$PUBLIC_IPV4}
+            
+            # Опеределяем целевой IP в зависимости от типа установки
+            local TARGET_IP=""
+            if [ "$INSTALL_TYPE" == "node" ]; then
+                TARGET_IP=${MANAGEMENT_IP:-$PUBLIC_IPV4}
+            else
+                TARGET_IP=${NODE_IP:-$PUBLIC_IPV4}
+            fi
+
             if [ "$RESOLVED_IP" != "$TARGET_IP" ]; then
-                log_warn "Домен $DOMAIN не указывает на целевой IP ($TARGET_IP)!"
+                log_warn "Домен $DOMAIN не указывает на целевой IP Управления ($TARGET_IP)! Текущий IP: ($RESOLVED_IP)"
                 DNS_OK=false
             else
-                log_success "Домен $DOMAIN корректно настроен."
+                log_success "Домен $DOMAIN корректно настроен на IP управления."
             fi
         fi
     done
@@ -82,10 +90,11 @@ run_deploy_cluster() {
         echo -e "ДИРЕКТОРИЯ:   $PROJECT_DIR"
     fi
     echo -e "------------------------------------------"
-    echo -e "IP СЕРВЕРА:   $DISPLAY_IP"
-    echo -e "ПОРТ SSH:     $SSH_PORT"
-    echo -e "ПОЛЬЗОВАТЕЛЬ: $NEW_USER"
-    echo -e "ПАРОЛЬ:       $USER_PASS"
+    echo -e "IP УПРАВЛЕНИЯ: $MANAGEMENT_IP"
+    echo -e "IP VPN НОДЫ:   $NODE_IP"
+    echo -e "ПОРТ SSH:      $SSH_PORT"
+    echo -e "ПОЛЬЗОВАТЕЛЬ:  $NEW_USER"
+    echo -e "ПАРОЛЬ:        $USER_PASS"
     echo -e "------------------------------------------"
-    echo -e "Команда подключения: ssh -p $SSH_PORT $NEW_USER@$DISPLAY_IP"
+    echo -e "Команда подключения: ssh -p $SSH_PORT $NEW_USER@$MANAGEMENT_IP"
 }

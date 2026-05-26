@@ -1,13 +1,12 @@
 #!/bin/bash
 # ==========================================
-# Module 06: Environment Generator (Updated)
+# Module 06: Environment Generator (Fixed)
 # ==========================================
 
 run_env_generator() {
     if [ "$INSTALL_TYPE" == "panel" ]; then
-        # Твой существующий код для ПАНЕЛИ остается без изменений
         log_section "5. КОНФИГУРАЦИЯ ПАНЕЛИ (.env)"
-        # ... (код панели) ...
+        # ... (код панели остается без изменений) ...
         log_success "Файл .env для панели успешно сгенерирован."
 
     elif [ "$INSTALL_TYPE" == "node" ]; then
@@ -18,31 +17,61 @@ run_env_generator() {
         
         if [ ${#LOCAL_IPS[@]} -eq 0 ]; then
             log_error "Публичные IPv4 не найдены. Введите IP вручную."
-            read -p "🔹 Основной IP для ноды: " NODE_IP
+            read -p "🔹 IP для управления (SSH / API панели): " MANAGEMENT_IP
+            read -p "🔹 IP для работы VPN (Xray Node): " NODE_IP
             read -p "🔹 IP для MTProxy Max: " MTPROXY_IP
-        elif [ ${#LOCAL_IPS[@]} -eq 1 ]; then
-            log_info "Обнаружен один IP: ${LOCAL_IPS[0]}"
-            NODE_IP=${LOCAL_IPS[0]}
-            MTPROXY_IP=${LOCAL_IPS[0]}
-            log_warn "Внимание: Для разделения трафика рекомендуется иметь 2 разных IPv4."
         else
-            echo -e "Обнаружены следующие IP-адреса:"
+            echo -e "Обнаружены следующие IP-адреса в системе:"
             for i in "${!LOCAL_IPS[@]}"; do
                 echo "  $((i+1))) ${LOCAL_IPS[$i]}"
             done
-            
-            read -p "Выберите номер IP для ноды Remnawave [1]: " choice1
-            choice1=${choice1:-1}
-            NODE_IP=${LOCAL_IPS[$((choice1 - 1))]}
-            
-            read -p "Выберите номер IP для MTProxy Max [2]: " choice2
-            choice2=${choice2:-2}
-            # Если выбран индекс больше доступного, берем первый IP
-            MTPROXY_IP=${LOCAL_IPS[$((choice2 - 1))]:-${LOCAL_IPS[0]}}
+            echo "------------------------------------------"
+
+            # 1. Выбор Management IP
+            while true; do
+                read -p "Выберите номер IP для УПРАВЛЕНИЯ (SSH, Caddy API, связь с панелью) [1]: " m_choice
+                m_choice=${m_choice:-1}
+                if [[ "$m_choice" =~ ^[0-9]+$ ]] && [ "$m_choice" -ge 1 ] && [ "$m_choice" -le "${#LOCAL_IPS[@]}" ]; then
+                    MANAGEMENT_IP=${LOCAL_IPS[$((m_choice - 1))]}
+                    break
+                else
+                    log_error "Неверный выбор. Введите число от 1 до ${#LOCAL_IPS[@]}."
+                fi
+            done
+
+            # 2. Выбор Node IP
+            while true; do
+                read -p "Выберите номер IP для работы VPN (Xray / Нода) [1]: " n_choice
+                n_choice=${n_choice:-1}
+                if [[ "$n_choice" =~ ^[0-9]+$ ]] && [ "$n_choice" -ge 1 ] && [ "$n_choice" -le "${#LOCAL_IPS[@]}" ]; then
+                    NODE_IP=${LOCAL_IPS[$((n_choice - 1))]}
+                    break
+                else
+                    log_error "Неверный выбор. Введите число от 1 до ${#LOCAL_IPS[@]}."
+                fi
+            done
+
+            # 3. Выбор MTProxy IP
+            while true; do
+                read -p "Выберите номер IP для MTProxy Max [2]: " mt_choice
+                mt_choice=${mt_choice:-2}
+                # Защита на случай, если в системе всего 1 IP
+                if [ "$mt_choice" -gt "${#LOCAL_IPS[@]}" ]; then mt_choice=1; fi
+                
+                if [[ "$mt_choice" =~ ^[0-9]+$ ]] && [ "$mt_choice" -ge 1 ] && [ "$mt_choice" -le "${#LOCAL_IPS[@]}" ]; then
+                    MTPROXY_IP=${LOCAL_IPS[$((mt_choice - 1))]}
+                    break
+                else
+                    log_error "Неверный выбор. Введите число от 1 до ${#LOCAL_IPS[@]}."
+                fi
+            done
         fi
 
-        export NODE_IP MTPROXY_IP
-        log_success "Сетевые настройки: Node ($NODE_IP), MTProxy ($MTPROXY_IP)"
+        export MANAGEMENT_IP NODE_IP MTPROXY_IP
+        log_success "Сетевые настройки распределены:"
+        echo -e "  » IP Управления (SSH/Caddy): \033[1;32m$MANAGEMENT_IP\033[0m"
+        echo -e "  » IP VPN Ноды (Xray):        \033[1;36m$NODE_IP\033[0m"
+        echo -e "  » IP MTProxy Max:            \033[1;35m$MTPROXY_IP\033[0m"
 
         # Сбор остальных данных
         read -p "🔹 Имя хоста ноды [vpn-node]: " INPUT_HOSTNAME

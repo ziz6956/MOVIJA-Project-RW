@@ -83,6 +83,7 @@ run_node_prepare() {
     
     log_info "Генерация финального .env..."
     cat <<EOF > "$ENV_PATH"
+MANAGEMENT_IP=$MANAGEMENT_IP
 NODE_IP=$NODE_IP
 MTPROXY_IP=$MTPROXY_IP
 SUB_DOMAIN=$SUB_DOMAIN

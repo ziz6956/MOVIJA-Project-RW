@@ -31,25 +31,41 @@ run_security_setup() {
     ufw --force reset > /dev/null
     ufw default deny incoming
     ufw default allow outgoing
-    ufw allow "$SSH_PORT"/tcp comment 'Custom SSH'
-    ufw allow 80/tcp comment 'HTTP'
-    ufw allow 443/tcp comment 'HTTPS'
+
+    # Если переменная MANAGEMENT_IP существует (установка ноды)
+    if [ -n "${MANAGEMENT_IP:-}" ]; then
+        log_info "Привязка SSH и администрирования к IP: $MANAGEMENT_IP"
+        ufw allow from any to "$MANAGEMENT_IP" port "$SSH_PORT" proto tcp comment 'Management SSH'
+        ufw allow from any to "$MANAGEMENT_IP" port 80 proto tcp comment 'Caddy HTTP (Management)'
+        ufw allow from any to "$MANAGEMENT_IP" port "$SUB_PORT" proto tcp comment 'Caddy HTTPS (Management)'
+    else
+        # Стандартные правила для панели (если MANAGEMENT_IP пустой)
+        ufw allow "$SSH_PORT"/tcp comment 'Custom SSH'
+        ufw allow 80/tcp comment 'HTTP'
+        ufw allow 443/tcp comment 'HTTPS'
+    fi
 
     # --- СПЕЦИФИЧНЫЕ ПРАВИЛА ДЛЯ НОДЫ ---
     if [ "$INSTALL_TYPE" == "node" ]; then
-        ufw allow 443/udp comment 'Caddy HTTP3'
-        ufw allow "$SUB_PORT"/tcp comment 'Caddy Subscriptions'
+        # Открываем порты Xray строго на NODE_IP
+        if [ -n "${NODE_IP:-}" ]; then
+            log_info "Привязка трафика VPN к IP: $NODE_IP"
+            ufw allow from any to "$NODE_IP" port 443 proto tcp comment 'Xray Reality TCP'
+            ufw allow from any to "$NODE_IP" port 443 proto udp comment 'Xray Reality UDP / HTTP3'
+            
+            # Разрешаем панели обращаться к API ноды (порт 2222) строго на NODE_IP
+            if [ -n "${PANEL_IP:-}" ]; then
+                ufw allow from "$PANEL_IP" to "$NODE_IP" port 2222 proto tcp comment 'Panel Access to Node API'
+            else
+                ufw allow from any to "$NODE_IP" port 2222 proto tcp comment 'Node API'
+            fi
+        fi
         
         # --- ПРАВИЛА ДЛЯ WARP SOCKS BRIDGE ---
-        # Разрешаем доступ к порту моста из подсетей Docker (172.16.0.0/12)
         ufw allow from 172.16.0.0/12 to any port 40000 proto tcp comment 'WARP Bridge TCP'
         ufw allow from 172.16.0.0/12 to any port 40000 proto udp comment 'WARP Bridge UDP'
         ufw allow in on docker0 to any port 40000
         ufw allow in on br-+ to any port 40000
-
-        if [ -n "${PANEL_IP:-}" ]; then
-            ufw allow from "$PANEL_IP" to any port 2222 proto tcp comment 'Panel Access'
-        fi
     fi
 
     ufw --force enable > /dev/null
